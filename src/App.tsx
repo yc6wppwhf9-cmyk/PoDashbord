@@ -274,23 +274,129 @@ function App() {
     }
   };
 
-  const downloadPOAsExcel = (poNo: string) => {
+  const openPOPreview = (poNo: string) => {
     const rows = poRawDataMap.get(poNo);
     if (!rows || rows.length === 0) return;
     
+    // Generate the HTML table using SheetJS
     const worksheet = xlsx.utils.json_to_sheet(rows);
-    const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(workbook, worksheet, 'PO_Details');
+    const htmlTable = xlsx.utils.sheet_to_html(worksheet);
     
-    const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>PO Detail - ${poNo}</title>
+          <style>
+            body { 
+              margin: 0; 
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+              background: #f9fbfd; 
+              color: #3c4043;
+            }
+            .top-bar {
+              background: #fff;
+              height: 64px;
+              display: flex;
+              align-items: center;
+              padding: 0 20px;
+              border-bottom: 1px solid #e0e0e0;
+              position: sticky;
+              top: 0;
+              z-index: 100;
+            }
+            .logo {
+              width: 32px;
+              height: 32px;
+              background: #0f9d58;
+              border-radius: 4px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-right: 12px;
+            }
+            .logo svg { fill: white; width: 20px; height: 20px; }
+            .title-info { flex-grow: 1; }
+            .filename { font-size: 18px; font-weight: 400; color: #202124; margin: 0; }
+            .file-meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
+            
+            .content {
+              padding: 20px;
+              overflow: auto;
+              height: calc(100vh - 104px);
+            }
+            
+            table {
+              border-collapse: collapse;
+              background: white;
+              box-shadow: 0 1px 3px rgba(60,64,67,0.3);
+              min-width: 100%;
+            }
+            
+            th, td {
+              border: 1px solid #e0e0e0;
+              padding: 8px 12px;
+              font-size: 13px;
+              height: 24px;
+            }
+            
+            th {
+              background: #f8f9fa;
+              color: #5f6368;
+              font-weight: 500;
+              text-align: center;
+              position: sticky;
+              top: 0;
+              z-index: 10;
+            }
+            
+            tr:first-child td {
+              background: #f8f9fa;
+              color: #5f6368;
+              font-weight: bold;
+              text-align: center;
+            }
+            
+            td {
+              color: #3c4043;
+            }
+            
+            tr:hover td {
+              background-color: #f1f3f4;
+            }
+            
+            .excel-grid-header {
+              background: #f8f9fa;
+              width: 40px;
+              text-align: center;
+              border-right: 2px solid #e0e0e0;
+              color: #5f6368;
+              font-weight: bold;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="top-bar">
+            <div class="logo">
+              <svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,16.6L10,20H8.2L11.1,15.5L8.2,11H10L12,14.4L14,11H15.8L12.9,15.5L15.8,20M13,9V3.5L18.5,9H13Z" /></svg>
+            </div>
+            <div class="title-info">
+              <h1 class="filename">Purchase Order Details: ${poNo}</h1>
+              <div class="file-meta">Viewing spreadsheet preview</div>
+            </div>
+          </div>
+          <div class="content">
+            ${htmlTable}
+          </div>
+        </body>
+      </html>
+    `;
     
-    window.open(url, '_blank');
-    
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 1000);
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(html);
+      newWindow.document.close();
+    }
   };
 
   return (
@@ -557,14 +663,14 @@ function App() {
                     ) : filteredData.slice(0, 100).map((po, index) => (
                       <tr key={`${po.poNo}-${index}`}>
                         <td 
-                          onClick={() => downloadPOAsExcel(po.poNo)}
+                          onClick={() => openPOPreview(po.poNo)}
                           style={{ 
                             fontWeight: 500, 
                             color: 'var(--accent-color)', 
                             cursor: 'pointer',
                             textDecoration: 'underline'
                           }}
-                          title="Click to download PO details as Excel"
+                          title="Click to view PO details in spreadsheet view"
                         >
                           {po.poNo}
                         </td>
