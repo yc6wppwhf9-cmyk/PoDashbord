@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as xlsx from 'xlsx';
-import { ShoppingCart, Calendar, AlertCircle, Clock, UploadCloud, FileSpreadsheet, X } from 'lucide-react';
+import { ShoppingCart, Calendar, AlertCircle, Clock, UploadCloud, FileSpreadsheet, X, RefreshCw } from 'lucide-react';
 import { isToday, isWithinInterval, addDays, startOfDay } from 'date-fns';
 
 interface PODetail {
@@ -25,12 +25,133 @@ type FilterType = keyof POMetrics | null;
 function App() {
   const [metrics, setMetrics] = useState<POMetrics | null>(null);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
   const [poRawDataMap, setPoRawDataMap] = useState<Map<string, any[]>>(new Map());
+
+  // Attempt to auto-sync on first load
+  useEffect(() => {
+    handleSyncEmail();
+  }, []);
+
+  const processArrayBuffer = (arrayBuffer: ArrayBuffer) => {
+    const workbook = xlsx.read(arrayBuffer, { type: 'buffer', cellDates: true });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    const rawData = xlsx.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    let headerRowIndex = 0;
+    
+    // Robust header detection
+    for (let i = 0; i < Math.min(20, rawData.length); i++) {
+      if (!rawData[i]) continue;
+      const rowHasPONo = rawData[i].some(cell => typeof cell === 'string' && (cell.includes('PO No') || cell.includes('PO Number')));
+      if (rowHasPONo) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+
+    const data = xlsx.utils.sheet_to_json(worksheet, { range: headerRowIndex }) as any[];
+
+    if (data.length === 0) {
+      throw new Error('No data found in the Excel file.');
+    }
+
+    const poSet = new Set<string>();
+    const due7DaysSet = new Set<string>();
+    const dueTodaySet = new Set<string>();
+    const openPOSet = new Set<string>();
+    
+    const poDetailsMap = new Map<string, PODetail>();
+    const rawMap = new Map<string, any[]>();
+
+    const today = startOfDay(new Date());
+    const sevenDaysFromNow = addDays(today, 7);
+
+    data.forEach(row => {
+      const poNo = row['PO No.'] || row['PO No'] || row['Purchase Order'] || row['PO Number'];
+      if (!poNo) return;
+
+      if (!rawMap.has(poNo)) {
+        rawMap.set(poNo, []);
+      }
+      rawMap.get(poNo)!.push(row);
+
+      // Check Due Dates
+      const rawDueDate = row['Due Date'] || row['Delivery Date'] || row['SCHEDULE_DATE'] || row['Shedule Date'] || row['Valid Till'];
+      let dueDateObj: Date | null = null;
+      if (rawDueDate) {
+        if (rawDueDate instanceof Date) {
+          dueDateObj = startOfDay(rawDueDate);
+        } else {
+          dueDateObj = startOfDay(new Date(rawDueDate));
+        }
+        if (isNaN(dueDateObj.getTime())) {
+           dueDateObj = null;
+        }
+      }
+
+      if (!poDetailsMap.has(poNo)) {
+         const qty = row['ORDER_QUATITY'] || row['Order Qty'] || row['PO Qty'] || row['PO Original Qty'] || 0;
+         const date = row['PO Creation Date'] || row['PO Date'] || row['Order Date'] || '';
+         const supplier = row['Party Name'] || row['Supplier'] || row['Party Code'] || '';
+         const status = row['PO Status'] || '';
+         const creator = row['Created By'] || row['Creator'] || '-';
+         
+         poDetailsMap.set(poNo, {
+             poNo: String(poNo),
+             date: date instanceof Date ? date.toLocaleDateString() : (date ? new Date(date).toLocaleDateString() : '-'),
+             supplier: String(supplier),
+             status: String(status),
+             dueDate: dueDateObj ? dueDateObj.toLocaleDateString() : '-',
+             qty: Number(qty) || 0,
+             creator: String(creator)
+         });
+      }
+
+      poSet.add(poNo);
+
+      const status = row['PO Status'];
+      const balanceQty = row['Balance Qty'] || row['PO Pending Qty'] || 0;
+      
+      let isOpen = false;
+      if (balanceQty > 0) isOpen = true;
+      if (status && typeof status === 'string' && status.toLowerCase().includes('open')) isOpen = true;
+      if (status && typeof status === 'string' && !status.toLowerCase().includes('total received/cancelled') && !status.toLowerCase().includes('closed')) isOpen = true; 
+      
+      if (status && typeof status === 'string' && status.toLowerCase().includes('cancelled')) isOpen = false;
+      if (status && typeof status === 'string' && status.toLowerCase().includes('total received')) isOpen = false;
+      
+      if (balanceQty > 0) isOpen = true;
+
+      if (isOpen) {
+        openPOSet.add(poNo);
+      }
+
+      if (dueDateObj) {
+        if (isToday(dueDateObj)) {
+          dueTodaySet.add(poNo);
+        }
+        
+        if (isWithinInterval(dueDateObj, { start: today, end: sevenDaysFromNow })) {
+          due7DaysSet.add(poNo);
+        }
+      }
+    });
+
+    setMetrics({
+      totalPOs: Array.from(poSet).map(id => poDetailsMap.get(id)!),
+      dueWithin7Days: Array.from(due7DaysSet).map(id => poDetailsMap.get(id)!),
+      dueToday: Array.from(dueTodaySet).map(id => poDetailsMap.get(id)!),
+      openPOs: Array.from(openPOSet).map(id => poDetailsMap.get(id)!)
+    });
+    setPoRawDataMap(rawMap);
+  };
 
   const processExcelData = async (file: File) => {
     setLoading(true);
@@ -40,126 +161,45 @@ function App() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      
-      const workbook = xlsx.read(arrayBuffer, { type: 'buffer', cellDates: true });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      
-      const rawData = xlsx.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-      let headerRowIndex = 0;
-      
-      // Robust header detection
-      for (let i = 0; i < Math.min(20, rawData.length); i++) {
-        if (!rawData[i]) continue;
-        const rowHasPONo = rawData[i].some(cell => typeof cell === 'string' && (cell.includes('PO No') || cell.includes('PO Number')));
-        if (rowHasPONo) {
-          headerRowIndex = i;
-          break;
-        }
-      }
-
-      const data = xlsx.utils.sheet_to_json(worksheet, { range: headerRowIndex }) as any[];
-
-      if (data.length === 0) {
-        throw new Error('No data found in the Excel file.');
-      }
-
-      const poSet = new Set<string>();
-      const due7DaysSet = new Set<string>();
-      const dueTodaySet = new Set<string>();
-      const openPOSet = new Set<string>();
-      
-      const poDetailsMap = new Map<string, PODetail>();
-      const rawMap = new Map<string, any[]>();
-
-      const today = startOfDay(new Date());
-      const sevenDaysFromNow = addDays(today, 7);
-
-      data.forEach(row => {
-        const poNo = row['PO No.'] || row['PO No'] || row['Purchase Order'] || row['PO Number'];
-        if (!poNo) return;
-
-        if (!rawMap.has(poNo)) {
-          rawMap.set(poNo, []);
-        }
-        rawMap.get(poNo)!.push(row);
-
-        // Check Due Dates
-        const rawDueDate = row['Due Date'] || row['Delivery Date'] || row['SCHEDULE_DATE'] || row['Shedule Date'] || row['Valid Till'];
-        let dueDateObj: Date | null = null;
-        if (rawDueDate) {
-          if (rawDueDate instanceof Date) {
-            dueDateObj = startOfDay(rawDueDate);
-          } else {
-            dueDateObj = startOfDay(new Date(rawDueDate));
-          }
-          if (isNaN(dueDateObj.getTime())) {
-             dueDateObj = null;
-          }
-        }
-
-        if (!poDetailsMap.has(poNo)) {
-           const qty = row['ORDER_QUATITY'] || row['Order Qty'] || row['PO Qty'] || row['PO Original Qty'] || 0;
-           const date = row['PO Creation Date'] || row['PO Date'] || row['Order Date'] || '';
-           const supplier = row['Party Name'] || row['Supplier'] || row['Party Code'] || '';
-           const status = row['PO Status'] || '';
-           const creator = row['Created By'] || row['Creator'] || '-';
-           
-           poDetailsMap.set(poNo, {
-               poNo: String(poNo),
-               date: date instanceof Date ? date.toLocaleDateString() : (date ? new Date(date).toLocaleDateString() : '-'),
-               supplier: String(supplier),
-               status: String(status),
-               dueDate: dueDateObj ? dueDateObj.toLocaleDateString() : '-',
-               qty: Number(qty) || 0,
-               creator: String(creator)
-           });
-        }
-
-        poSet.add(poNo);
-
-        const status = row['PO Status'];
-        const balanceQty = row['Balance Qty'] || row['PO Pending Qty'] || 0;
-        
-        let isOpen = false;
-        if (balanceQty > 0) isOpen = true;
-        if (status && typeof status === 'string' && status.toLowerCase().includes('open')) isOpen = true;
-        if (status && typeof status === 'string' && !status.toLowerCase().includes('total received/cancelled') && !status.toLowerCase().includes('closed')) isOpen = true; 
-        
-        if (status && typeof status === 'string' && status.toLowerCase().includes('cancelled')) isOpen = false;
-        if (status && typeof status === 'string' && status.toLowerCase().includes('total received')) isOpen = false;
-        
-        if (balanceQty > 0) isOpen = true;
-
-        if (isOpen) {
-          openPOSet.add(poNo);
-        }
-
-        if (dueDateObj) {
-          if (isToday(dueDateObj)) {
-            dueTodaySet.add(poNo);
-          }
-          
-          if (isWithinInterval(dueDateObj, { start: today, end: sevenDaysFromNow })) {
-            due7DaysSet.add(poNo);
-          }
-        }
-      });
-
-      setMetrics({
-        totalPOs: Array.from(poSet).map(id => poDetailsMap.get(id)!),
-        dueWithin7Days: Array.from(due7DaysSet).map(id => poDetailsMap.get(id)!),
-        dueToday: Array.from(dueTodaySet).map(id => poDetailsMap.get(id)!),
-        openPOs: Array.from(openPOSet).map(id => poDetailsMap.get(id)!)
-      });
-      setPoRawDataMap(rawMap);
-
+      processArrayBuffer(arrayBuffer);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'An error occurred while processing the file.');
       setMetrics(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncEmail = async (forceRefresh = false) => {
+    setSyncing(true);
+    setLoading(true);
+    setError(null);
+    setActiveFilter(null);
+    setFileName('Synced from Email');
+
+    try {
+      // In development, the backend runs on port 3000. In production, it's the same host.
+      const isDev = import.meta.env.DEV;
+      const baseUrl = isDev ? 'http://localhost:3000' : '';
+      const url = `${baseUrl}/api/po-data${forceRefresh ? '?forceRefresh=true' : ''}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to sync with email backend. Please check Render environment variables.');
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      processArrayBuffer(arrayBuffer);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
+      setFileName(null);
+    } finally {
+      setLoading(false);
+      setSyncing(false);
     }
   };
 
@@ -238,49 +278,79 @@ function App() {
       <div className="header" style={{ marginBottom: '2rem' }}>
         <div>
           <h1>PO Dashboard</h1>
-          <p>Upload your PO Register Excel file to generate real-time analytics</p>
+          <p>Sync automatically with your email or upload manually</p>
         </div>
       </div>
 
-      <div style={{ marginBottom: '3rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <input 
-          type="file" 
-          accept=".xlsx, .xls, .csv" 
-          style={{ display: 'none' }} 
-          ref={fileInputRef}
-          onChange={handleFileChange}
-        />
+      <div style={{ marginBottom: '3rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button 
-          onClick={handleUploadClick}
+          onClick={() => handleSyncEmail(true)}
+          disabled={syncing}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            background: 'var(--accent-color)',
+            background: 'var(--primary-color)',
             color: 'white',
             border: 'none',
             padding: '0.75rem 1.5rem',
             borderRadius: '0.5rem',
             fontSize: '1rem',
             fontWeight: '600',
-            cursor: 'pointer',
+            cursor: syncing ? 'not-allowed' : 'pointer',
             transition: 'background 0.2s',
+            opacity: syncing ? 0.7 : 1
           }}
-          onMouseOver={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
-          onMouseOut={(e) => e.currentTarget.style.background = 'var(--accent-color)'}
         >
-          <UploadCloud size={20} />
-          Upload PO Register
+          <RefreshCw size={20} className={syncing ? 'spinning' : ''} />
+          {syncing ? 'Syncing...' : 'Sync Latest Email'}
         </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ color: 'var(--text-secondary)', padding: '0 0.5rem' }}>OR</span>
+          <input 
+            type="file" 
+            accept=".xlsx, .xls, .csv" 
+            style={{ display: 'none' }} 
+            ref={fileInputRef}
+            onChange={handleFileChange}
+          />
+          <button 
+            onClick={handleUploadClick}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'transparent',
+              color: 'var(--accent-color)',
+              border: '1px solid var(--accent-color)',
+              padding: '0.75rem 1.5rem',
+              borderRadius: '0.5rem',
+              fontSize: '1rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+            }}
+          >
+            <UploadCloud size={20} />
+            Upload File Manually
+          </button>
+        </div>
+
         {fileName && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
             <FileSpreadsheet size={18} />
             <span>{fileName}</span>
           </div>
         )}
       </div>
 
-      {loading && (
+      <style>{`
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spinning { animation: spin 1s linear infinite; }
+      `}</style>
+
+      {loading && !syncing && (
         <div className="loader-container">
           <div className="spinner"></div>
           <p>Analyzing PO Register...</p>
@@ -445,14 +515,14 @@ function App() {
         </>
       )}
 
-      {!loading && !error && !metrics && (
+      {!loading && !error && !metrics && !syncing && (
         <div className="po-list" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem', color: 'var(--text-secondary)' }}>
             <FileSpreadsheet size={48} opacity={0.5} />
           </div>
-          <h2>No Data Yet</h2>
+          <h2>No Data Found</h2>
           <p style={{ color: 'var(--text-secondary)' }}>
-            Please upload your PO Register Excel file using the button above to view your dashboard metrics.
+            Configure your Render Environment Variables to sync automatically, or upload your PO Register manually.
           </p>
         </div>
       )}
