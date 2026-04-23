@@ -25,8 +25,8 @@ const fetchLatestPOFromEmail = async () => {
     const config = {
         imap: {
             user: process.env.EMAIL_USER,
-            password: process.env.EMAIL_PASS,
-            host: process.env.IMAP_HOST || 'imap.gmail.com',
+            password: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : undefined,
+            host: process.env.IMAP_HOST || process.env.EMAIL_IMAP_SERVER || 'imap.gmail.com',
             port: parseInt(process.env.IMAP_PORT || '993', 10),
             tls: true,
             authTimeout: 15000,
