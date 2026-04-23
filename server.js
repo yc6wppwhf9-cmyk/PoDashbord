@@ -113,9 +113,9 @@ const updateCacheBackground = async () => {
     }
 };
 
-// Schedule Cron Job to run at 9:00 AM India Standard Time
-cron.schedule('0 9 * * *', () => {
-    console.log("Cron triggered 9:00 AM sync.");
+// Schedule Cron Job to run at 9:45 AM India Standard Time
+cron.schedule('45 9 * * *', () => {
+    console.log("Cron triggered 9:45 AM sync.");
     updateCacheBackground();
 }, {
     scheduled: true,

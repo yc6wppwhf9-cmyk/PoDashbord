@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import * as xlsx from 'xlsx';
-import { ShoppingCart, Calendar, AlertCircle, Clock, UploadCloud, FileSpreadsheet, X, RefreshCw } from 'lucide-react';
-import { isToday, isWithinInterval, addDays, startOfDay } from 'date-fns';
+import { ShoppingCart, Calendar, AlertCircle, Clock, UploadCloud, FileSpreadsheet, X, RefreshCw, Search } from 'lucide-react';
+import { isToday, isWithinInterval, addDays, startOfDay, differenceInDays } from 'date-fns';
 
 interface PODetail {
   poNo: string;
@@ -11,6 +11,7 @@ interface PODetail {
   dueDate: string;
   qty: number;
   creator: string;
+  totalDays: number | string;
 }
 
 interface POMetrics {
@@ -32,6 +33,8 @@ function App() {
   
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
   const [poRawDataMap, setPoRawDataMap] = useState<Map<string, any[]>>(new Map());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [columnFilters, setColumnFilters] = useState<{ [key: string]: string }>({});
 
   // Attempt to auto-sync on first load
   useEffect(() => {
@@ -103,14 +106,26 @@ function App() {
          const status = row['PO Status'] || '';
          const creator = row['Created By'] || row['Creator'] || '-';
          
+         let dateObj: Date | null = null;
+         if (date) {
+           dateObj = date instanceof Date ? startOfDay(date) : startOfDay(new Date(date));
+           if (isNaN(dateObj.getTime())) dateObj = null;
+         }
+         
+         let totalDays: number | string = '-';
+         if (dateObj && dueDateObj) {
+           totalDays = differenceInDays(dueDateObj, dateObj);
+         }
+         
          poDetailsMap.set(poNo, {
              poNo: String(poNo),
-             date: date instanceof Date ? date.toLocaleDateString() : (date ? new Date(date).toLocaleDateString() : '-'),
+             date: dateObj ? dateObj.toLocaleDateString() : '-',
              supplier: String(supplier),
              status: String(status),
              dueDate: dueDateObj ? dueDateObj.toLocaleDateString() : '-',
              qty: Number(qty) || 0,
-             creator: String(creator)
+             creator: String(creator),
+             totalDays
          });
       }
 
@@ -220,6 +235,30 @@ function App() {
 
   const activeData = activeFilter && metrics ? metrics[activeFilter] : [];
 
+  const filteredData = useMemo(() => {
+    let data = activeData;
+
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      data = data.filter(po => 
+        Object.values(po).some(val => 
+          String(val).toLowerCase().includes(lowerQuery)
+        )
+      );
+    }
+
+    Object.entries(columnFilters).forEach(([key, filterValue]) => {
+      if (filterValue) {
+        const lowerFilter = filterValue.toLowerCase();
+        data = data.filter(po => 
+          String(po[key as keyof PODetail] || '').toLowerCase().includes(lowerFilter)
+        );
+      }
+    });
+
+    return data;
+  }, [activeData, searchQuery, columnFilters]);
+
   const getMetricTitle = (filter: FilterType) => {
     switch (filter) {
         case 'totalPOs': return 'Total Purchase Orders';
@@ -230,47 +269,15 @@ function App() {
     }
   };
 
-  const openPOInNewTab = (poNo: string) => {
+  const downloadPOAsExcel = (poNo: string) => {
     const rows = poRawDataMap.get(poNo);
     if (!rows || rows.length === 0) return;
     
     const worksheet = xlsx.utils.json_to_sheet(rows);
-    const htmlTable = xlsx.utils.sheet_to_html(worksheet);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'PO_Details');
     
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>PO Details - ${poNo}</title>
-          <style>
-            body { font-family: 'Inter', -apple-system, sans-serif; padding: 30px; background: #f8fafc; color: #0f172a; }
-            .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 25px; }
-            h2 { margin: 0; font-size: 24px; font-weight: 600; }
-            .po-badge { background: #3b82f6; color: white; padding: 4px 12px; border-radius: 6px; font-size: 20px; }
-            table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden; }
-            th, td { border: 1px solid #e2e8f0; padding: 12px 16px; text-align: left; font-size: 14px; }
-            th { background-color: #f1f5f9; font-weight: 600; color: #475569; white-space: nowrap; }
-            tr:hover td { background-color: #f8fafc; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h2>Purchase Order Details: <span class="po-badge">${poNo}</span></h2>
-          </div>
-          <div style="overflow-x: auto;">
-            ${htmlTable}
-          </div>
-        </body>
-      </html>
-    `;
-    
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-    } else {
-      alert('Please allow popups to view the PO details in a new tab.');
-    }
+    xlsx.writeFile(workbook, `PO_${poNo}.xlsx`);
   };
 
   return (
@@ -420,36 +427,59 @@ function App() {
           </div>
 
           <div className="po-list">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '1rem' }}>
               <h2 style={{ margin: 0, padding: 0, border: 'none' }}>
                 {getMetricTitle(activeFilter)}
               </h2>
               {activeFilter && (
-                <button 
-                  onClick={() => setActiveFilter(null)}
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-secondary)',
-                    borderRadius: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.color = 'var(--text-primary)';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.color = 'var(--text-secondary)';
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <X size={16} /> Clear Filter
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={18} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                    <input
+                      type="text"
+                      placeholder="Global Search..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      style={{
+                        padding: '0.5rem 1rem 0.5rem 2.2rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-color)',
+                        color: 'var(--text-primary)',
+                        minWidth: '250px'
+                      }}
+                    />
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setActiveFilter(null);
+                      setSearchQuery('');
+                      setColumnFilters({});
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-secondary)',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.color = 'var(--text-primary)';
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <X size={16} /> Clear Filters
+                  </button>
+                </div>
               )}
             </div>
 
@@ -459,34 +489,65 @@ function App() {
               </p>
             ) : activeData.length === 0 ? (
                <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0' }}>
-                No records found for this filter.
+                No records found for this category.
               </p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table>
                   <thead>
                     <tr>
-                      <th>PO Number</th>
-                      <th>Date</th>
-                      <th>Supplier</th>
-                      <th>Creator</th>
-                      <th>Due Date</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: 'right' }}>Qty</th>
+                      <th>
+                        <div>PO Number</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.poNo || ''} onChange={e => setColumnFilters(prev => ({ ...prev, poNo: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
+                      </th>
+                      <th>
+                        <div>Date</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.date || ''} onChange={e => setColumnFilters(prev => ({ ...prev, date: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
+                      </th>
+                      <th>
+                        <div>Supplier</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.supplier || ''} onChange={e => setColumnFilters(prev => ({ ...prev, supplier: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
+                      </th>
+                      <th>
+                        <div>Creator</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.creator || ''} onChange={e => setColumnFilters(prev => ({ ...prev, creator: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
+                      </th>
+                      <th>
+                        <div>Due Date</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.dueDate || ''} onChange={e => setColumnFilters(prev => ({ ...prev, dueDate: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
+                      </th>
+                      <th style={{ textAlign: 'center' }}>
+                        <div>Total Days</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.totalDays || ''} onChange={e => setColumnFilters(prev => ({ ...prev, totalDays: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px', textAlign: 'center' }} />
+                      </th>
+                      <th>
+                        <div>Status</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.status || ''} onChange={e => setColumnFilters(prev => ({ ...prev, status: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
+                      </th>
+                      <th style={{ textAlign: 'right' }}>
+                        <div>Qty</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.qty || ''} onChange={e => setColumnFilters(prev => ({ ...prev, qty: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right' }} />
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {activeData.slice(0, 100).map((po, index) => (
+                    {filteredData.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
+                          No records match your search or filters.
+                        </td>
+                      </tr>
+                    ) : filteredData.slice(0, 100).map((po, index) => (
                       <tr key={`${po.poNo}-${index}`}>
                         <td 
-                          onClick={() => openPOInNewTab(po.poNo)}
+                          onClick={() => downloadPOAsExcel(po.poNo)}
                           style={{ 
                             fontWeight: 500, 
                             color: 'var(--accent-color)', 
                             cursor: 'pointer',
                             textDecoration: 'underline'
                           }}
-                          title="Click to view PO details in a new tab"
+                          title="Click to download PO details as Excel"
                         >
                           {po.poNo}
                         </td>
@@ -494,6 +555,13 @@ function App() {
                         <td>{po.supplier}</td>
                         <td>{po.creator}</td>
                         <td>{po.dueDate}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          {po.totalDays !== '-' ? (
+                            <span style={{ fontWeight: 600, color: Number(po.totalDays) < 0 ? 'var(--danger-color)' : (Number(po.totalDays) <= 7 ? 'var(--warning-color)' : 'var(--text-primary)') }}>
+                              {po.totalDays}
+                            </span>
+                          ) : '-'}
+                        </td>
                         <td>
                           <span className={`badge ${po.status.toLowerCase().includes('open') ? 'open' : po.status.toLowerCase().includes('cancelled') ? 'danger' : 'closed'}`}>
                             {po.status || 'Unknown'}
@@ -504,9 +572,9 @@ function App() {
                     ))}
                   </tbody>
                 </table>
-                {activeData.length > 100 && (
+                {filteredData.length > 100 && (
                   <p style={{ color: 'var(--text-secondary)', textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem' }}>
-                    Showing top 100 results out of {activeData.length}.
+                    Showing top 100 results out of {filteredData.length}.
                   </p>
                 )}
               </div>
