@@ -49,12 +49,15 @@ const fetchLatestPOFromEmail = async () => {
             markSeen: false
         };
 
+        console.log("Searching for emails...");
         const messages = await connection.search(searchCriteria, fetchOptions);
         
         if (!messages || messages.length === 0) {
             connection.end();
-            throw new Error('No emails found with subject "Purchase_Order_Reports".');
+            throw new Error('IMAP Connected, but no emails found with subject "Purchase_Order_Reports".');
         }
+
+        console.log(`Found ${messages.length} emails. Parsing the newest one...`);
 
         // Sort by date descending to get the newest
         messages.sort((a, b) => new Date(b.attributes.date).getTime() - new Date(a.attributes.date).getTime());
@@ -74,13 +77,15 @@ const fetchLatestPOFromEmail = async () => {
         );
 
         if (!attachment) {
-            throw new Error('No Excel attachment found in the latest email.');
+            const fileNames = parsedEmail.attachments.map(a => a.filename).join(', ');
+            throw new Error(`Email parsed, but no Excel attachment found. Found attachments: ${fileNames || 'None'}`);
         }
 
+        console.log("Attachment successfully extracted!");
         return attachment.content; // Returns the Buffer
     } catch (err) {
         console.error("IMAP Fetch Error:", err);
-        throw err;
+        throw new Error(`IMAP Error: ${err.message}`);
     }
 };
 
@@ -107,7 +112,8 @@ app.get('/api/po-data', async (req, res) => {
         res.setHeader('Content-Disposition', 'attachment; filename="po_report.xlsx"');
         res.send(cachedPOData);
     } catch (err) {
-        res.status(500).json({ error: err.message || "Failed to fetch PO data." });
+        console.error("API Error Handler:", err);
+        res.status(500).json({ error: err.message || "Failed to fetch PO data from email server." });
     }
 });
 
