@@ -9,7 +9,8 @@ interface PODetail {
   supplier: string;
   status: string;
   dueDate: string;
-  qty: number;
+  orderQty: number;
+  receivedQty: number;
   creator: string;
   totalDays: number | string;
 }
@@ -100,7 +101,6 @@ function App() {
       }
 
       if (!poDetailsMap.has(poNo)) {
-         const qty = row['ORDER_QUATITY'] || row['Order Qty'] || row['PO Qty'] || row['PO Original Qty'] || 0;
          const date = row['PO Creation Date'] || row['PO Date'] || row['Order Date'] || '';
          const supplier = row['Party Name'] || row['Supplier'] || row['Party Code'] || '';
          const status = row['PO Status'] || '';
@@ -123,11 +123,16 @@ function App() {
              supplier: String(supplier),
              status: String(status),
              dueDate: dueDateObj ? dueDateObj.toLocaleDateString() : '-',
-             qty: Number(qty) || 0,
+             orderQty: 0,
+             receivedQty: 0,
              creator: String(creator),
              totalDays
          });
       }
+
+      const poDetail = poDetailsMap.get(poNo)!;
+      poDetail.orderQty += Number(row['Order Qty'] || row['PO Original Qty'] || row['ORDER_QUATITY'] || 0);
+      poDetail.receivedQty += Number(row['PO Received Qty'] || row['Received Qty'] || 0);
 
       poSet.add(poNo);
 
@@ -533,15 +538,19 @@ function App() {
                         <input type="text" placeholder="Filter..." value={columnFilters.status || ''} onChange={e => setColumnFilters(prev => ({ ...prev, status: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
                       </th>
                       <th style={{ textAlign: 'right' }}>
-                        <div>Qty</div>
-                        <input type="text" placeholder="Filter..." value={columnFilters.qty || ''} onChange={e => setColumnFilters(prev => ({ ...prev, qty: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right' }} />
+                        <div>Order Qty</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.orderQty || ''} onChange={e => setColumnFilters(prev => ({ ...prev, orderQty: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right' }} />
+                      </th>
+                      <th style={{ textAlign: 'right' }}>
+                        <div>Received Qty</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.receivedQty || ''} onChange={e => setColumnFilters(prev => ({ ...prev, receivedQty: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right' }} />
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredData.length === 0 ? (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
                           No records match your search or filters.
                         </td>
                       </tr>
@@ -575,7 +584,8 @@ function App() {
                             {po.status || 'Unknown'}
                           </span>
                         </td>
-                        <td style={{ textAlign: 'right' }}>{po.qty}</td>
+                        <td style={{ textAlign: 'right' }}>{po.orderQty}</td>
+                        <td style={{ textAlign: 'right' }}>{po.receivedQty}</td>
                       </tr>
                     ))}
                   </tbody>
