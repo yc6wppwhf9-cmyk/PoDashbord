@@ -5,6 +5,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import cron from 'node-cron';
 
 dotenv.config();
 
@@ -89,6 +90,41 @@ const fetchLatestPOFromEmail = async () => {
     }
 };
 
+// Background Update Function
+let isFetching = false;
+const updateCacheBackground = async () => {
+    if (isFetching) return;
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.warn("Skipping background fetch: Email credentials not configured.");
+        return;
+    }
+
+    try {
+        isFetching = true;
+        console.log(`[${new Date().toLocaleString()}] Starting background email sync...`);
+        const buffer = await fetchLatestPOFromEmail();
+        cachedPOData = buffer;
+        lastFetchTime = Date.now();
+        console.log(`[${new Date().toLocaleString()}] Background sync complete. Data cached!`);
+    } catch (err) {
+        console.error(`[${new Date().toLocaleString()}] Background sync failed:`, err.message);
+    } finally {
+        isFetching = false;
+    }
+};
+
+// Schedule Cron Job to run at 9:00 AM India Standard Time
+cron.schedule('0 9 * * *', () => {
+    console.log("Cron triggered 9:00 AM sync.");
+    updateCacheBackground();
+}, {
+    scheduled: true,
+    timezone: "Asia/Kolkata"
+});
+
+// Run an initial fetch 3 seconds after server starts
+setTimeout(updateCacheBackground, 3000);
+
 // API Endpoint to get the PO data
 app.get('/api/po-data', async (req, res) => {
     const forceRefresh = req.query.forceRefresh === 'true';
@@ -98,14 +134,18 @@ app.get('/api/po-data', async (req, res) => {
     }
 
     try {
-        // Cache data for 1 hour to prevent hitting IMAP too frequently
-        if (!cachedPOData || forceRefresh || (Date.now() - lastFetchTime > 1000 * 60 * 60)) {
-            console.log("Connecting to email to fetch new PO data...");
-            const buffer = await fetchLatestPOFromEmail();
-            cachedPOData = buffer;
-            lastFetchTime = Date.now();
+        if (forceRefresh) {
+            console.log("Client requested force refresh. Syncing now...");
+            await updateCacheBackground();
+        } else if (!cachedPOData) {
+            console.log("Cache empty. Syncing now...");
+            await updateCacheBackground();
         } else {
-            console.log("Serving PO data from cache...");
+            console.log("Serving instantly from memory cache!");
+        }
+
+        if (!cachedPOData) {
+            throw new Error("Data could not be fetched from email.");
         }
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

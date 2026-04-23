@@ -18,6 +18,7 @@
     "imap-simple": "^5.1.0",
     "lucide-react": "^1.8.0",
     "mailparser": "^3.9.8",
+    "node-cron": "^4.2.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "xlsx": "^0.18.5"
