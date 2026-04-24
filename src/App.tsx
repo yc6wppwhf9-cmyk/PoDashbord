@@ -19,6 +19,7 @@ interface POMetrics {
   totalPOs: PODetail[];
   dueWithin7Days: PODetail[];
   dueToday: PODetail[];
+  overduePOs: PODetail[];
   openPOs: PODetail[];
 }
 
@@ -69,6 +70,7 @@ function App() {
     const poSet = new Set<string>();
     const due7DaysSet = new Set<string>();
     const dueTodaySet = new Set<string>();
+    const overduePOSet = new Set<string>();
     const openPOSet = new Set<string>();
     
     const poDetailsMap = new Map<string, PODetail>();
@@ -151,6 +153,9 @@ function App() {
 
       if (isOpen) {
         openPOSet.add(poNo);
+        if (dueDateObj && dueDateObj < today) {
+          overduePOSet.add(poNo);
+        }
       }
 
       if (dueDateObj) {
@@ -168,6 +173,7 @@ function App() {
       totalPOs: Array.from(poSet).map(id => poDetailsMap.get(id)!),
       dueWithin7Days: Array.from(due7DaysSet).map(id => poDetailsMap.get(id)!),
       dueToday: Array.from(dueTodaySet).map(id => poDetailsMap.get(id)!),
+      overduePOs: Array.from(overduePOSet).map(id => poDetailsMap.get(id)!),
       openPOs: Array.from(openPOSet).map(id => poDetailsMap.get(id)!)
     });
     setPoRawDataMap(rawMap);
@@ -270,6 +276,7 @@ function App() {
         case 'openPOs': return 'Open Purchase Orders';
         case 'dueToday': return 'POs Due Today';
         case 'dueWithin7Days': return 'POs Due in 7 Days';
+        case 'overduePOs': return 'Overdue Purchase Orders';
         default: return 'Analytics Overview';
     }
   };
@@ -519,16 +526,16 @@ function App() {
             </div>
 
             <div 
-              className={`metric-card due-seven ${activeFilter === 'dueWithin7Days' ? 'active' : ''}`}
-              onClick={() => handleMetricClick('dueWithin7Days')}
+              className={`metric-card overdue ${activeFilter === 'overduePOs' ? 'active' : ''}`}
+              onClick={() => handleMetricClick('overduePOs')}
             >
               <div className="metric-header">
-                <span className="metric-title">Due in 7 Days</span>
+                <span className="metric-title">Overdue POs</span>
                 <div className="metric-icon">
-                  <Calendar size={20} />
+                  <Clock size={20} />
                 </div>
               </div>
-              <div className="metric-value">{metrics.dueWithin7Days.length}</div>
+              <div className="metric-value">{metrics.overduePOs.length}</div>
             </div>
 
             <div 
@@ -542,6 +549,19 @@ function App() {
                 </div>
               </div>
               <div className="metric-value">{metrics.dueToday.length}</div>
+            </div>
+
+            <div 
+              className={`metric-card due-seven ${activeFilter === 'dueWithin7Days' ? 'active' : ''}`}
+              onClick={() => handleMetricClick('dueWithin7Days')}
+            >
+              <div className="metric-header">
+                <span className="metric-title">Due in 7 Days</span>
+                <div className="metric-icon">
+                  <Calendar size={20} />
+                </div>
+              </div>
+              <div className="metric-value">{metrics.dueWithin7Days.length}</div>
             </div>
           </div>
 
