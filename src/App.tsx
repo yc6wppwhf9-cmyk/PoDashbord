@@ -125,8 +125,8 @@ function App() {
       }
       rawMap.get(poNo)!.push(row);
 
-      // Check Due Dates
-      const rawDueDate = row['Due Date'] || row['Delivery Date'] || row['SCHEDULE_DATE'] || row['Shedule Date'] || row['Valid Till'];
+      // Check Due Dates - Prioritize 'Valid Till' as requested
+      const rawDueDate = row['Valid Till'] || row['Due Date'] || row['Delivery Date'] || row['SCHEDULE_DATE'] || row['Shedule Date'];
       let dueDateObj: Date | null = null;
       if (rawDueDate) {
         if (rawDueDate instanceof Date) {
