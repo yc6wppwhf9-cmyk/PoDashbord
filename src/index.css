@@ -129,6 +129,7 @@ body {
 .metric-card.due-seven::before { background: var(--warning-color); }
 .metric-card.due-today::before { background: var(--danger-color); }
 .metric-card.open::before { background: var(--success-color); }
+.metric-card.overdue::before { background: var(--danger-color); }
 
 .metric-card:hover {
   transform: translateY(-5px);
@@ -162,6 +163,7 @@ body {
 .metric-card.due-seven .metric-icon { color: var(--warning-color); background: rgba(245, 158, 11, 0.1); }
 .metric-card.due-today .metric-icon { color: var(--danger-color); background: rgba(239, 68, 68, 0.1); }
 .metric-card.open .metric-icon { color: var(--success-color); background: rgba(16, 185, 129, 0.1); }
+.metric-card.overdue .metric-icon { color: var(--danger-color); background: rgba(239, 68, 68, 0.1); }
 
 .metric-value {
   font-size: 2.5rem;
