@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import * as xlsx from 'xlsx';
-import { ShoppingCart, Calendar, AlertCircle, Clock, UploadCloud, FileSpreadsheet, X, RefreshCw, Search } from 'lucide-react';
+import { Calendar, AlertCircle, Clock, UploadCloud, FileSpreadsheet, X, RefreshCw, Search } from 'lucide-react';
 import { isToday, isWithinInterval, addDays, startOfDay, differenceInDays } from 'date-fns';
 
 interface PODetail {
