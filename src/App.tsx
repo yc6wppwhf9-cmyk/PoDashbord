@@ -13,10 +13,13 @@ interface PODetail {
   receivedQty: number;
   creator: string;
   totalDays: number | string;
+  dateRaw: Date | null;
+  dueDateRaw: Date | null;
+  remark: string;
 }
 
 interface POMetrics {
-  totalPOs: PODetail[];
+  remarksPOs: PODetail[];
   dueWithin7Days: PODetail[];
   dueToday: PODetail[];
   overduePOs: PODetail[];
@@ -37,11 +40,44 @@ function App() {
   const [poRawDataMap, setPoRawDataMap] = useState<Map<string, any[]>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
   const [columnFilters, setColumnFilters] = useState<{ [key: string]: string }>({});
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+  const [remarksMap, setRemarksMap] = useState<{ [key: string]: string }>({});
 
   // Attempt to auto-sync on first load
   useEffect(() => {
     handleSyncEmail();
+    fetchRemarks();
   }, []);
+
+  const fetchRemarks = async () => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const baseUrl = isDev ? 'http://localhost:3000' : '';
+      const response = await fetch(`${baseUrl}/api/remarks`);
+      if (response.ok) {
+        const data = await response.json();
+        setRemarksMap(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch remarks:", err);
+    }
+  };
+
+  const handleRemarkChange = async (poNo: string, remark: string) => {
+    setRemarksMap(prev => ({ ...prev, [poNo]: remark }));
+    
+    try {
+      const isDev = import.meta.env.DEV;
+      const baseUrl = isDev ? 'http://localhost:3000' : '';
+      await fetch(`${baseUrl}/api/remarks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poNo, remark })
+      });
+    } catch (err) {
+      console.error("Failed to save remark:", err);
+    }
+  };
 
   const processArrayBuffer = (arrayBuffer: ArrayBuffer) => {
     const workbook = xlsx.read(arrayBuffer, { type: 'buffer', cellDates: true });
@@ -71,6 +107,7 @@ function App() {
     const due7DaysSet = new Set<string>();
     const dueTodaySet = new Set<string>();
     const overduePOSet = new Set<string>();
+    const remarksPOSet = new Set<string>();
     const openPOSet = new Set<string>();
     
     const poDetailsMap = new Map<string, PODetail>();
@@ -128,11 +165,17 @@ function App() {
              orderQty: 0,
              receivedQty: 0,
              creator: String(creator),
-             totalDays
+             totalDays,
+             dateRaw: dateObj,
+             dueDateRaw: dueDateObj,
+             remark: remarksMap[String(poNo)] || ''
          });
       }
 
       const poDetail = poDetailsMap.get(poNo)!;
+      if (poDetail.remark) {
+        remarksPOSet.add(String(poNo));
+      }
       poDetail.orderQty += Number(row['Order Qty'] || row['PO Original Qty'] || row['ORDER_QUATITY'] || 0);
       poDetail.receivedQty += Number(row['PO Received Qty'] || row['Received Qty'] || 0);
 
@@ -170,7 +213,7 @@ function App() {
     });
 
     setMetrics({
-      totalPOs: Array.from(poSet).map(id => poDetailsMap.get(id)!),
+      remarksPOs: Array.from(remarksPOSet).map(id => poDetailsMap.get(id)!),
       dueWithin7Days: Array.from(due7DaysSet).map(id => poDetailsMap.get(id)!),
       dueToday: Array.from(dueTodaySet).map(id => poDetailsMap.get(id)!),
       overduePOs: Array.from(overduePOSet).map(id => poDetailsMap.get(id)!),
@@ -267,12 +310,31 @@ function App() {
       }
     });
 
+    if (dateRange.start || dateRange.end) {
+      data = data.filter(po => {
+        if (!po.dateRaw) return false;
+        const poDate = startOfDay(po.dateRaw);
+        
+        if (dateRange.start && dateRange.end) {
+          return isWithinInterval(poDate, {
+            start: startOfDay(new Date(dateRange.start)),
+            end: startOfDay(new Date(dateRange.end))
+          });
+        } else if (dateRange.start) {
+          return poDate >= startOfDay(new Date(dateRange.start));
+        } else if (dateRange.end) {
+          return poDate <= startOfDay(new Date(dateRange.end));
+        }
+        return true;
+      });
+    }
+
     return data;
   }, [activeData, searchQuery, columnFilters]);
 
   const getMetricTitle = (filter: FilterType) => {
     switch (filter) {
-        case 'totalPOs': return 'Total Purchase Orders';
+        case 'remarksPOs': return 'POs with Remarks';
         case 'openPOs': return 'Open Purchase Orders';
         case 'dueToday': return 'POs Due Today';
         case 'dueWithin7Days': return 'POs Due in 7 Days';
@@ -500,16 +562,16 @@ function App() {
         <>
           <div className="metrics-grid">
             <div 
-              className={`metric-card total ${activeFilter === 'totalPOs' ? 'active' : ''}`}
-              onClick={() => handleMetricClick('totalPOs')}
+              className={`metric-card remarks ${activeFilter === 'remarksPOs' ? 'active' : ''}`}
+              onClick={() => handleMetricClick('remarksPOs')}
             >
               <div className="metric-header">
-                <span className="metric-title">Total POs</span>
+                <span className="metric-title">With Remarks</span>
                 <div className="metric-icon">
-                  <ShoppingCart size={20} />
+                  <FileSpreadsheet size={20} />
                 </div>
               </div>
-              <div className="metric-value">{metrics.totalPOs.length}</div>
+              <div className="metric-value">{metrics.remarksPOs.length}</div>
             </div>
 
             <div 
@@ -572,6 +634,22 @@ function App() {
               </h2>
               {activeFilter && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.03)', padding: '0.25rem 0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Range:</span>
+                    <input 
+                      type="date" 
+                      value={dateRange.start} 
+                      onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}
+                    />
+                    <span style={{ color: 'var(--text-secondary)' }}>to</span>
+                    <input 
+                      type="date" 
+                      value={dateRange.end} 
+                      onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}
+                    />
+                  </div>
                   <div style={{ position: 'relative' }}>
                     <Search size={18} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                     <input
@@ -594,6 +672,7 @@ function App() {
                       setActiveFilter(null);
                       setSearchQuery('');
                       setColumnFilters({});
+                      setDateRange({ start: '', end: '' });
                     }}
                     style={{
                       background: 'transparent',
@@ -671,6 +750,10 @@ function App() {
                         <div>Received Qty</div>
                         <input type="text" placeholder="Filter..." value={columnFilters.receivedQty || ''} onChange={e => setColumnFilters(prev => ({ ...prev, receivedQty: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right' }} />
                       </th>
+                      <th>
+                        <div>Remark</div>
+                        <input type="text" placeholder="Filter..." value={columnFilters.remark || ''} onChange={e => setColumnFilters(prev => ({ ...prev, remark: e.target.value }))} style={{ width: '100%', padding: '4px', marginTop: '4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '12px' }} />
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -712,6 +795,23 @@ function App() {
                         </td>
                         <td style={{ textAlign: 'right' }}>{po.orderQty}</td>
                         <td style={{ textAlign: 'right' }}>{po.receivedQty}</td>
+                        <td>
+                          <input 
+                            type="text" 
+                            value={remarksMap[po.poNo] || ''} 
+                            onChange={(e) => handleRemarkChange(po.poNo, e.target.value)}
+                            placeholder="Add remark..."
+                            style={{
+                              width: '100%',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--border-color)',
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              color: 'var(--text-primary)',
+                              fontSize: '12px'
+                            }}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
