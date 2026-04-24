@@ -130,7 +130,8 @@ function App() {
       let dueDateObj: Date | null = null;
       if (rawDueDate) {
         if (rawDueDate instanceof Date) {
-          dueDateObj = startOfDay(rawDueDate);
+          // Use UTC components to prevent timezone shifts
+          dueDateObj = new Date(rawDueDate.getUTCFullYear(), rawDueDate.getUTCMonth(), rawDueDate.getUTCDate());
         } else {
           dueDateObj = startOfDay(new Date(rawDueDate));
         }
@@ -140,14 +141,18 @@ function App() {
       }
 
       if (!poDetailsMap.has(poNo)) {
-         const date = row['PO Creation Date'] || row['PO Date'] || row['Order Date'] || '';
+         const date = row['Order Date'] || row['PO Date'] || row['PO Creation Date'] || '';
          const supplier = row['Party Name'] || row['Supplier'] || row['Party Code'] || '';
          const status = row['PO Status'] || '';
          const creator = row['Created By'] || row['Creator'] || '-';
          
          let dateObj: Date | null = null;
          if (date) {
-           dateObj = date instanceof Date ? startOfDay(date) : startOfDay(new Date(date));
+           if (date instanceof Date) {
+             dateObj = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+           } else {
+             dateObj = startOfDay(new Date(date));
+           }
            if (isNaN(dateObj.getTime())) dateObj = null;
          }
          
