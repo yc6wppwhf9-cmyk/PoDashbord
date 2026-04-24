@@ -90,27 +90,36 @@ const fetchLatestPOFromEmail = async () => {
     }
 };
 
-// Background Update Function
-let isFetching = false;
+let currentSyncPromise = null;
+
 const updateCacheBackground = async () => {
-    if (isFetching) return;
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.warn("Skipping background fetch: Email credentials not configured.");
-        return;
+    if (currentSyncPromise) {
+        console.log("Sync already in progress, waiting for it...");
+        return currentSyncPromise;
     }
 
-    try {
-        isFetching = true;
-        console.log(`[${new Date().toLocaleString()}] Starting background email sync...`);
-        const buffer = await fetchLatestPOFromEmail();
-        cachedPOData = buffer;
-        lastFetchTime = Date.now();
-        console.log(`[${new Date().toLocaleString()}] Background sync complete. Data cached!`);
-    } catch (err) {
-        console.error(`[${new Date().toLocaleString()}] Background sync failed:`, err.message);
-    } finally {
-        isFetching = false;
-    }
+    currentSyncPromise = (async () => {
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            console.warn("Skipping fetch: Email credentials not configured.");
+            return null;
+        }
+
+        try {
+            console.log(`[${new Date().toLocaleString()}] Starting email sync...`);
+            const buffer = await fetchLatestPOFromEmail();
+            cachedPOData = buffer;
+            lastFetchTime = Date.now();
+            console.log(`[${new Date().toLocaleString()}] Sync complete. Data cached!`);
+            return buffer;
+        } catch (err) {
+            console.error(`[${new Date().toLocaleString()}] Sync failed:`, err.message);
+            throw err;
+        } finally {
+            currentSyncPromise = null;
+        }
+    })();
+
+    return currentSyncPromise;
 };
 
 // Schedule Cron Job to run at 9:45 AM India Standard Time
