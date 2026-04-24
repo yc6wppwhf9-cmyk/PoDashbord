@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
+import fs from 'fs/promises';
+import { existsSync } from 'fs';
 
 dotenv.config();
 
@@ -14,6 +16,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
 // Serve the static React files built by Vite
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -163,6 +166,36 @@ app.get('/api/po-data', async (req, res) => {
     } catch (err) {
         console.error("API Error Handler:", err);
         res.status(500).json({ error: err.message || "Failed to fetch PO data from email server." });
+    }
+});
+
+const REMARKS_FILE = path.join(__dirname, 'remarks.json');
+
+app.get('/api/remarks', async (req, res) => {
+    try {
+        if (!existsSync(REMARKS_FILE)) {
+            return res.json({});
+        }
+        const data = await fs.readFile(REMARKS_FILE, 'utf8');
+        res.json(JSON.parse(data || '{}'));
+    } catch (err) {
+        res.status(500).json({ error: "Failed to read remarks" });
+    }
+});
+
+app.post('/api/remarks', async (req, res) => {
+    try {
+        const { poNo, remark } = req.body;
+        let remarks = {};
+        if (existsSync(REMARKS_FILE)) {
+            const data = await fs.readFile(REMARKS_FILE, 'utf8');
+            remarks = JSON.parse(data || '{}');
+        }
+        remarks[poNo] = remark;
+        await fs.writeFile(REMARKS_FILE, JSON.stringify(remarks, null, 2));
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to save remark" });
     }
 });
 
