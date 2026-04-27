@@ -42,6 +42,7 @@ function App() {
   const [columnFilters, setColumnFilters] = useState<{ [key: string]: string }>({});
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [remarksMap, setRemarksMap] = useState<{ [key: string]: string }>({});
+  const [previewPO, setPreviewPO] = useState<{ poNo: string; rows: any[] } | null>(null);
 
   // Attempt to auto-sync on first load
   useEffect(() => {
@@ -130,8 +131,7 @@ function App() {
       let dueDateObj: Date | null = null;
       if (rawDueDate) {
         if (rawDueDate instanceof Date) {
-          // Use UTC components to prevent timezone shifts
-          dueDateObj = new Date(rawDueDate.getUTCFullYear(), rawDueDate.getUTCMonth(), rawDueDate.getUTCDate());
+          dueDateObj = new Date(rawDueDate.getFullYear(), rawDueDate.getMonth(), rawDueDate.getDate());
         } else {
           dueDateObj = startOfDay(new Date(rawDueDate));
         }
@@ -149,7 +149,7 @@ function App() {
          let dateObj: Date | null = null;
          if (date) {
            if (date instanceof Date) {
-             dateObj = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+             dateObj = new Date(date.getFullYear(), date.getMonth(), date.getDate());
            } else {
              dateObj = startOfDay(new Date(date));
            }
@@ -351,126 +351,7 @@ function App() {
   const openPOPreview = (poNo: string) => {
     const rows = poRawDataMap.get(poNo);
     if (!rows || rows.length === 0) return;
-    
-    // Generate the HTML table using SheetJS
-    const worksheet = xlsx.utils.json_to_sheet(rows);
-    const htmlTable = xlsx.utils.sheet_to_html(worksheet);
-    
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>PO Detail - ${poNo}</title>
-          <style>
-            body { 
-              margin: 0; 
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-              background: #f9fbfd; 
-              color: #3c4043;
-            }
-            .top-bar {
-              background: #fff;
-              height: 64px;
-              display: flex;
-              align-items: center;
-              padding: 0 20px;
-              border-bottom: 1px solid #e0e0e0;
-              position: sticky;
-              top: 0;
-              z-index: 100;
-            }
-            .logo {
-              width: 32px;
-              height: 32px;
-              background: #0f9d58;
-              border-radius: 4px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              margin-right: 12px;
-            }
-            .logo svg { fill: white; width: 20px; height: 20px; }
-            .title-info { flex-grow: 1; }
-            .filename { font-size: 18px; font-weight: 400; color: #202124; margin: 0; }
-            .file-meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
-            
-            .content {
-              padding: 20px;
-              overflow: auto;
-              height: calc(100vh - 104px);
-            }
-            
-            table {
-              border-collapse: collapse;
-              background: white;
-              box-shadow: 0 1px 3px rgba(60,64,67,0.3);
-              min-width: 100%;
-            }
-            
-            th, td {
-              border: 1px solid #e0e0e0;
-              padding: 8px 12px;
-              font-size: 13px;
-              height: 24px;
-            }
-            
-            th {
-              background: #f8f9fa;
-              color: #5f6368;
-              font-weight: 500;
-              text-align: center;
-              position: sticky;
-              top: 0;
-              z-index: 10;
-            }
-            
-            tr:first-child td {
-              background: #f8f9fa;
-              color: #5f6368;
-              font-weight: bold;
-              text-align: center;
-            }
-            
-            td {
-              color: #3c4043;
-            }
-            
-            tr:hover td {
-              background-color: #f1f3f4;
-            }
-            
-            .excel-grid-header {
-              background: #f8f9fa;
-              width: 40px;
-              text-align: center;
-              border-right: 2px solid #e0e0e0;
-              color: #5f6368;
-              font-weight: bold;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="top-bar">
-            <div class="logo">
-              <svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,16.6L10,20H8.2L11.1,15.5L8.2,11H10L12,14.4L14,11H15.8L12.9,15.5L15.8,20M13,9V3.5L18.5,9H13Z" /></svg>
-            </div>
-            <div class="title-info">
-              <h1 class="filename">Purchase Order Details: ${poNo}</h1>
-              <div class="file-meta">Viewing spreadsheet preview</div>
-            </div>
-          </div>
-          <div class="content">
-            ${htmlTable}
-          </div>
-        </body>
-      </html>
-    `;
-    
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-    }
+    setPreviewPO({ poNo, rows });
   };
 
   return (
@@ -490,7 +371,7 @@ function App() {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            background: 'var(--primary-color)',
+            background: 'var(--accent-color)',
             color: 'white',
             border: 'none',
             padding: '0.75rem 1.5rem',
@@ -841,6 +722,92 @@ function App() {
           <p style={{ color: 'var(--text-secondary)' }}>
             Configure your Render Environment Variables to sync automatically, or upload your PO Register manually.
           </p>
+        </div>
+      )}
+
+      {previewPO && (
+        <div
+          onClick={() => setPreviewPO(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '2rem'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--surface-color)',
+              borderRadius: '1rem',
+              border: '1px solid var(--glass-border)',
+              width: '100%',
+              maxWidth: '1200px',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '1rem 1.5rem',
+              borderBottom: '1px solid var(--border-color)',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <FileSpreadsheet size={22} color="var(--success-color)" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '1rem' }}>Purchase Order: {previewPO.poNo}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {previewPO.rows.length} line {previewPO.rows.length === 1 ? 'item' : 'items'}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewPO(null)}
+                style={{
+                  background: 'transparent', border: '1px solid var(--border-color)',
+                  color: 'var(--text-secondary)', borderRadius: '0.5rem',
+                  padding: '0.4rem 0.75rem', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.875rem'
+                }}
+              >
+                <X size={16} /> Close
+              </button>
+            </div>
+
+            <div style={{ overflowX: 'auto', overflowY: 'auto', padding: '1rem 1.5rem' }}>
+              <table style={{ fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr>
+                    {Object.keys(previewPO.rows[0]).map(col => (
+                      <th key={col} style={{
+                        background: 'var(--surface-hover)', color: 'var(--text-secondary)',
+                        padding: '0.5rem 0.75rem', position: 'sticky', top: 0,
+                        fontWeight: 500, textAlign: 'left', whiteSpace: 'nowrap'
+                      }}>
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewPO.rows.map((row, i) => (
+                    <tr key={i}>
+                      {Object.keys(previewPO.rows[0]).map(col => (
+                        <td key={col} style={{ padding: '0.5rem 0.75rem', color: 'var(--text-primary)' }}>
+                          {row[col] instanceof Date
+                            ? new Date(row[col].getFullYear(), row[col].getMonth(), row[col].getDate()).toLocaleDateString()
+                            : String(row[col] ?? '')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
