@@ -351,23 +351,48 @@ function App() {
     const rows = poRawDataMap.get(poNo);
     if (!rows || rows.length === 0) return;
 
-    const excelRows = rows.map(row => {
-      const r: any = {};
-      Object.entries(row).forEach(([k, v]) => {
-        r[k] = v instanceof Date ? new Date(v.getFullYear(), v.getMonth(), v.getDate()) : v;
-      });
-      return r;
-    });
+    const columns = Object.keys(rows[0]);
 
-    const ws = xlsx.utils.json_to_sheet(excelRows);
-    const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, ws, 'PO Details');
+    const formatCell = (val: any) => {
+      if (val instanceof Date) {
+        return new Date(val.getFullYear(), val.getMonth(), val.getDate()).toLocaleDateString('en-IN');
+      }
+      return String(val ?? '');
+    };
 
-    const buf = xlsx.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PO: ${poNo}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; background: #f3f4f6; margin: 0; }
+    h2 { color: #1e293b; margin-bottom: 4px; font-size: 1.25rem; }
+    p { color: #64748b; margin-bottom: 16px; font-size: 0.875rem; }
+    .table-wrap { overflow-x: auto; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+    table { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
+    th { background: #2563eb; color: #fff; padding: 9px 14px; text-align: left; white-space: nowrap; font-weight: 600; }
+    td { padding: 8px 14px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; color: #1e293b; }
+    tr:nth-child(even) td { background: #f9fafb; }
+    tr:hover td { background: #eff6ff; }
+  </style>
+</head>
+<body>
+  <h2>Purchase Order: ${poNo}</h2>
+  <p>${rows.length} line item${rows.length !== 1 ? 's' : ''}</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>${columns.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(row => `<tr>${columns.map(c => `<td>${formatCell(row[c])}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank', 'noopener');
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
   return (
