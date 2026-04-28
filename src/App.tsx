@@ -42,7 +42,6 @@ function App() {
   const [columnFilters, setColumnFilters] = useState<{ [key: string]: string }>({});
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [remarksMap, setRemarksMap] = useState<{ [key: string]: string }>({});
-  const [previewPO, setPreviewPO] = useState<{ poNo: string; rows: any[] } | null>(null);
 
   // Attempt to auto-sync on first load
   useEffect(() => {
@@ -351,7 +350,24 @@ function App() {
   const openPOPreview = (poNo: string) => {
     const rows = poRawDataMap.get(poNo);
     if (!rows || rows.length === 0) return;
-    setPreviewPO({ poNo, rows });
+
+    const excelRows = rows.map(row => {
+      const r: any = {};
+      Object.entries(row).forEach(([k, v]) => {
+        r[k] = v instanceof Date ? new Date(v.getFullYear(), v.getMonth(), v.getDate()) : v;
+      });
+      return r;
+    });
+
+    const ws = xlsx.utils.json_to_sheet(excelRows);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, 'PO Details');
+
+    const buf = xlsx.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   return (
@@ -725,91 +741,6 @@ function App() {
         </div>
       )}
 
-      {previewPO && (
-        <div
-          onClick={() => setPreviewPO(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '2rem'
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'var(--surface-color)',
-              borderRadius: '1rem',
-              border: '1px solid var(--glass-border)',
-              width: '100%',
-              maxWidth: '1200px',
-              maxHeight: '85vh',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
-            }}
-          >
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '1rem 1.5rem',
-              borderBottom: '1px solid var(--border-color)',
-              flexShrink: 0
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileSpreadsheet size={22} color="var(--success-color)" />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '1rem' }}>Purchase Order: {previewPO.poNo}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    {previewPO.rows.length} line {previewPO.rows.length === 1 ? 'item' : 'items'}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setPreviewPO(null)}
-                style={{
-                  background: 'transparent', border: '1px solid var(--border-color)',
-                  color: 'var(--text-secondary)', borderRadius: '0.5rem',
-                  padding: '0.4rem 0.75rem', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.875rem'
-                }}
-              >
-                <X size={16} /> Close
-              </button>
-            </div>
-
-            <div style={{ overflowX: 'auto', overflowY: 'auto', padding: '1rem 1.5rem' }}>
-              <table style={{ fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
-                <thead>
-                  <tr>
-                    {Object.keys(previewPO.rows[0]).map(col => (
-                      <th key={col} style={{
-                        background: 'var(--surface-hover)', color: 'var(--text-secondary)',
-                        padding: '0.5rem 0.75rem', position: 'sticky', top: 0,
-                        fontWeight: 500, textAlign: 'left', whiteSpace: 'nowrap'
-                      }}>
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewPO.rows.map((row, i) => (
-                    <tr key={i}>
-                      {Object.keys(previewPO.rows[0]).map(col => (
-                        <td key={col} style={{ padding: '0.5rem 0.75rem', color: 'var(--text-primary)' }}>
-                          {row[col] instanceof Date
-                            ? new Date(row[col].getFullYear(), row[col].getMonth(), row[col].getDate()).toLocaleDateString()
-                            : String(row[col] ?? '')}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
