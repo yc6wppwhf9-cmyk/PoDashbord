@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: sticky top bar with tabs; each tab is one working surface. Summary (KPI strip) first, then detail. */
+/* Layout: sticky top bar with tabs + shared filter strip; summary (KPI strip) first, then detail. */
 :root {
   --bg: #f2f4f8;
   --surface: #ffffff;
@@ -45,35 +45,40 @@
   --crit: #f0776b; --crit-soft: #3a1a17; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
 h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
 h2 { font-size: 1.05rem; font-weight: 700; }
-h3 { font-size: 0.95rem; font-weight: 600; }
 button, input, select, textarea { font: inherit; color: inherit; }
 .mono { font-family: var(--font-mono); }
 .num { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
+.small { font-size: 0.8rem; }
 .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
 
 /* Top bar */
 .topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
-.topbar-inner { max-width: 1240px; margin: 0 auto; padding-inline: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding-block: 10px 0; }
-.brand { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; }
+.topbar-inner { max-width: 1280px; margin: 0 auto; padding-inline: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding-block: 10px 0; }
+.brand { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding-bottom: 10px; min-width: 0; }
 .brand h1 { font-size: 1.25rem; font-weight: 800; }
 .brand .tag { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); }
-.tabs { display: flex; gap: 2px; overflow-x: auto; margin-left: auto; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; margin-left: auto; max-width: 100%; }
 .tab { border: 0; background: none; padding: 10px 14px 12px; cursor: pointer; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
 .tab:hover { color: var(--fg); }
 .tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
 .tab .count { font-family: var(--font-mono); font-size: 0.7rem; background: var(--surface-2); padding: 0 6px; border-radius: 99px; }
-.tab .count.hot { background: var(--accent); color: var(--accent-ink); }
 
-main { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 20px; }
+.filters { max-width: 1280px; margin: 0 auto; padding-inline: 16px; padding-block: 16px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters select { max-width: 240px; }
+
+main { max-width: 1280px; margin: 0 auto; padding-inline: 16px; padding-block: 16px 48px; display: grid; gap: 20px; }
+.stack-v { display: grid; gap: 20px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
 .panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
 .grid-2 > * { min-width: 0; }
+@media (max-width: 420px) { .grid-2 { grid-template-columns: 1fr; } }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 /* Buttons & inputs */
@@ -81,90 +86,90 @@ main { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 2
 .btn:hover { background: var(--surface-2); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.primary:hover { filter: brightness(1.08); }
-.btn.ghost { border-color: transparent; background: none; color: var(--muted); }
+.btn.ghost { border-color: transparent; background: none; color: var(--muted); padding: 4px 8px; }
 .btn.ghost:hover { color: var(--fg); background: var(--surface-2); }
+.btn.danger { color: var(--crit); border-color: var(--crit); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.input, select.input, textarea.input { border: 1px solid var(--line); background: var(--bg); padding: 7px 10px; border-radius: 8px; min-width: 0; }
-textarea.input { width: 100%; font-family: var(--font-mono); font-size: 0.8rem; resize: vertical; }
+.input { border: 1px solid var(--line); background: var(--surface); padding: 7px 10px; border-radius: 8px; min-width: 0; }
+
+.banner { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--fg); border-radius: var(--radius); padding: 12px 16px; }
 
 /* KPI strip */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.kpis.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 860px) { .kpis.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .kpi { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
-.kpi .value { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.kpi .value { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .kpi .sub { font-size: 0.78rem; color: var(--muted); }
 .kpi.alert .value { color: var(--crit); }
+.kpi.warn .value { color: var(--warn); }
 .kpi.good .value { color: var(--good); }
 
 /* Pills */
 .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 600; padding: 1px 8px; border-radius: 99px; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.pill.s-Approved, .pill.s-Shipped { background: var(--accent-soft); color: var(--accent); }
-.pill.s-Delivered { background: var(--good-soft); color: var(--good); }
-.pill.s-Delayed { background: var(--crit-soft); color: var(--crit); }
-.pill.s-Cancelled { text-decoration: line-through; }
+.pill.s-New { background: var(--accent-soft); color: var(--accent); }
+.pill.s-Partial { background: var(--warn-soft); color: var(--warn); }
+.pill.s-Closed { background: var(--good-soft); color: var(--good); }
 .chip { font-size: 0.72rem; padding: 1px 7px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .chip.crit { border-color: var(--crit); color: var(--crit); }
 .chip.warn { border-color: var(--warn); color: var(--warn); }
 .chip.good { border-color: var(--good); color: var(--good); }
 
 /* Tables */
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--surface-2); font-weight: 600; position: sticky; top: 0; }
+.table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.84rem; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--surface-2); font-weight: 600; position: sticky; top: 0; z-index: 1; }
 td.r, th.r { text-align: right; }
-tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover td { background: var(--bg); }
-.late td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
+td.wrap { white-space: normal; min-width: 180px; }
+tbody tr:hover > td { background: var(--bg); }
+tr.late > td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
+tr.po-row { cursor: pointer; }
+tr.detail > td { background: var(--bg); padding: 10px 12px 14px 34px; }
+tr.detail table { background: var(--surface); }
+.caret { display: inline-block; width: 1em; color: var(--muted); transition: transform 0.15s; }
+tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
+.trunc { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 
 /* Bars */
 .bars { display: grid; gap: 10px; }
-.bar-row { display: grid; grid-template-columns: minmax(90px, 150px) 1fr auto; gap: 10px; align-items: center; font-size: 0.85rem; }
+.bar-row { display: grid; grid-template-columns: minmax(90px, 170px) 1fr minmax(64px, auto); gap: 10px; align-items: center; font-size: 0.84rem; }
 .bar-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-row .val { text-align: right; }
 .bar-track { height: 10px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
 .bar-fill { height: 100%; background: var(--accent); border-radius: 99px; }
-.stack { display: flex; height: 18px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
-.stack span { height: 100%; }
+.bar-fill.warn { background: var(--warn); }
+.bar-fill.crit { background: var(--crit); }
+.stackbar { display: flex; height: 18px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+.stackbar span { height: 100%; }
+.stackbar.thin { height: 8px; border-radius: 99px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 0.8rem; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
-.c-Open { background: var(--muted); } .c-Approved { background: color-mix(in srgb, var(--accent) 55%, var(--surface)); }
-.c-Shipped { background: var(--accent); } .c-Delivered { background: var(--good); }
-.c-Delayed { background: var(--crit); } .c-Cancelled { background: var(--line); }
+.c-New { background: var(--accent); } .c-Partial { background: var(--warn); } .c-Closed { background: var(--good); }
+.c-recv { background: var(--good); } .c-cancel { background: var(--muted); } .c-pend { background: var(--warn); }
+.status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.status-grid > div { display: grid; gap: 2px; }
+.status-grid b { font-family: var(--font-display); font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 
 .list { display: grid; }
 .list-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .list-item:last-child { border-bottom: 0; }
-
-/* Email tab */
-.mail { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: 20px; align-items: start; }
-@media (max-width: 760px) { .mail { grid-template-columns: 1fr; } }
-.mail > * { min-width: 0; }
-.mail-list { display: grid; gap: 6px; }
-.mail-item { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: grid; gap: 2px; }
-.mail-item:hover { background: var(--bg); }
-.mail-item[aria-current="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
-.mail-item .subj { font-weight: 600; }
-.mail-item .meta { font-size: 0.76rem; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
-.mail-body { font-family: var(--font-mono); font-size: 0.76rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; max-height: 220px; overflow: auto; white-space: pre; }
+.list-item > div:first-child { min-width: 0; flex: 1 1 200px; }
 
 /* Tracker */
-.track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+.track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 420px) { .track-grid { grid-template-columns: 1fr; } }
 .track { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: grid; gap: 12px; align-content: start; min-width: 0; }
 .track.missing { border-style: dashed; }
 .track-top { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
-.track-po { font-family: var(--font-mono); font-weight: 500; font-size: 1rem; }
-.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.step { display: grid; gap: 4px; font-size: 0.7rem; color: var(--muted); }
-.step::before { content: ""; height: 4px; border-radius: 99px; background: var(--surface-2); }
-.step.done::before { background: var(--accent); }
-.step.done.final::before { background: var(--good); }
-.step.done { color: var(--fg); }
-.steps.bad .step.done::before { background: var(--crit); }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 0.82rem; }
+.track-po { font-family: var(--font-mono); font-weight: 500; font-size: 0.98rem; word-break: break-all; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 0.82rem; margin: 0; }
 .kv dt { color: var(--muted); }
-.kv dd { margin: 0; text-align: right; }
+.kv dd { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .history { font-size: 0.76rem; color: var(--muted); display: grid; gap: 2px; border-top: 1px solid var(--line); padding-top: 8px; }
+.lines-mini { max-height: 200px; }
 
 /* Upload */
 .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 28px 16px; text-align: center; display: grid; gap: 8px; justify-items: center; background: var(--surface); cursor: pointer; }
@@ -172,10 +177,9 @@ tbody tr:hover td { background: var(--bg); }
 .drop strong { font-family: var(--font-display); font-size: 1.05rem; }
 .map { display: flex; flex-wrap: wrap; gap: 6px; }
 .map .chip b { color: var(--fg); font-weight: 600; }
-.note { font-size: 0.82rem; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
 .empty { padding: 24px 12px; text-align: center; color: var(--muted); }
 
-.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgb(0 0 0 / 0.2); }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgb(0 0 0 / 0.2); z-index: 20; }
 @media (prefers-reduced-motion: no-preference) { .toast { animation: rise 0.2s ease-out; } }
 @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } }
 </style>
@@ -186,123 +190,159 @@ tbody tr:hover td { background: var(--bg); }
   <div class="topbar-inner">
     <div class="brand">
       <h1>PO Tracking Desk</h1>
-      <span class="tag" id="syncInfo">prototype</span>
+      <span class="tag" id="syncInfo"></span>
     </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button class="tab" role="tab" data-tab="overview" id="tab-overview">Overview</button>
-      <button class="tab" role="tab" data-tab="email" id="tab-email">Email reports <span class="count" id="cnt-email"></span></button>
+      <button class="tab" role="tab" data-tab="register" id="tab-register">PO register</button>
       <button class="tab" role="tab" data-tab="tracker" id="tab-tracker">My PO tracker <span class="count" id="cnt-track"></span></button>
       <button class="tab" role="tab" data-tab="upload" id="tab-upload">Upload Excel</button>
     </nav>
   </div>
 </header>
 
+<div class="filters" id="filters">
+  <span class="label">Filter</span>
+  <select class="input" id="fSite" aria-label="Site"></select>
+  <select class="input" id="fDept" aria-label="Item department"></select>
+  <select class="input" id="fParty" aria-label="Supplier"></select>
+  <select class="input" id="fBy" aria-label="Ordered by"></select>
+  <button class="btn ghost" id="fClear">Clear filters</button>
+</div>
+
 <main>
+  <div class="banner" id="sampleBanner" hidden>
+    <span><b>Showing sample data.</b> Upload your Purchase Order Report export to see your own POs.</span>
+    <button class="btn primary" data-tab="upload">Upload Excel</button>
+  </div>
+
   <!-- OVERVIEW -->
-  <section data-view="overview" hidden>
-    <div style="display:grid;gap:20px">
-      <div class="kpis" id="kpis"></div>
-      <div class="grid-2">
-        <div class="panel">
-          <div class="panel-head"><h2>PO status mix</h2><span class="label" id="mixTotal"></span></div>
-          <div class="stack" id="statusStack"></div>
-          <div class="legend" id="statusLegend"></div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><h2>Open value by vendor</h2><span class="label">Top 6</span></div>
-          <div class="bars" id="vendorBars"></div>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="panel">
-          <div class="panel-head"><h2>Overdue</h2><span class="chip crit" id="overdueCount"></span></div>
-          <div class="list" id="overdueList"></div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><h2>Due in the next 7 days</h2><span class="chip" id="dueCount"></span></div>
-          <div class="list" id="dueList"></div>
-        </div>
+  <section data-view="overview" class="stack-v" hidden>
+    <div class="kpis four" id="kpis"></div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head"><h2>PO status</h2><span class="label">by PO count and value</span></div>
+        <div class="stackbar" id="statusStack"></div>
+        <div class="status-grid" id="statusGrid"></div>
       </div>
       <div class="panel">
-        <div class="panel-head">
-          <h2>All purchase orders</h2>
-          <div class="row">
-            <input class="input" id="q" type="search" placeholder="Search PO, vendor, item" aria-label="Search">
-            <select class="input" id="fStatus" aria-label="Status filter"><option value="">All statuses</option></select>
-            <select class="input" id="fSource" aria-label="Source filter"><option value="">All sources</option><option>Email</option><option>Excel</option></select>
-          </div>
-        </div>
-        <div class="table-wrap" style="max-height:520px">
-          <table>
-            <thead><tr><th>PO number</th><th>Vendor</th><th>Item</th><th class="r">Qty</th><th class="r">Received</th><th class="r">Amount</th><th>Order date</th><th>Due date</th><th>Status</th><th>Source</th><th>Track</th></tr></thead>
-            <tbody id="poRows"></tbody>
-          </table>
-        </div>
+        <div class="panel-head"><h2>Pending value by delay</h2><span class="label">vs delivery date</span></div>
+        <div class="bars" id="ageBars"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head"><h2>Pending value by supplier</h2><span class="label">Top 8</span></div>
+        <div class="bars" id="partyBars"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Pending value by department</h2><span class="label">Top 8</span></div>
+        <div class="bars" id="deptBars"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head"><h2>Overdue POs</h2><span class="chip crit" id="overdueCount"></span></div>
+        <div class="list" id="overdueList"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Due in the next 7 days</h2><span class="chip" id="dueCount"></span></div>
+        <div class="list" id="dueList"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Department-wise</h2><span class="label">order qty is summed per unit (UOM)</span></div>
+      <div class="table-wrap" style="max-height:480px">
+        <table>
+          <thead><tr><th>Department</th><th class="r">POs</th><th class="r">Lines</th><th>Order qty</th><th class="r">Net amount</th><th class="r">Received value</th><th class="r">Pending value</th><th class="r">Overdue POs</th></tr></thead>
+          <tbody id="deptRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Orders placed by</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Ordered by</th><th class="r">POs</th><th class="r">Lines</th><th class="r">Net amount</th><th class="r">Open POs</th><th class="r">Pending value</th><th class="r">Overdue POs</th></tr></thead>
+          <tbody id="byRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Sites</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Site</th><th class="r">POs</th><th class="r">Open POs</th><th class="r">PO value</th><th class="r">Pending value</th><th class="r">Overdue POs</th><th class="r">Overdue value</th></tr></thead>
+          <tbody id="siteRows"></tbody>
+        </table>
       </div>
     </div>
   </section>
 
-  <!-- EMAIL -->
-  <section data-view="email" hidden>
-    <div style="display:grid;gap:20px">
-      <div class="note">Prototype: the inbox below holds sample report emails. In production a scheduled job reads the PO report mailbox (Gmail API, Microsoft Graph or IMAP), parses the table in the body or the attached Excel, and imports it the same way the Import button does here.</div>
-      <div class="mail">
-        <div class="panel">
-          <div class="panel-head"><h2>Report inbox</h2><button class="btn" id="checkInbox">Check inbox</button></div>
-          <div class="mail-list" id="mailList"></div>
+  <!-- REGISTER -->
+  <section data-view="register" class="stack-v" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="regTitle">PO register</h2>
+        <div class="row">
+          <input class="input" id="q" type="search" placeholder="Search PO, supplier, item, remarks" aria-label="Search" style="min-width:220px">
+          <select class="input" id="fStatus" aria-label="Status">
+            <option value="">All statuses</option><option value="open">Open (New + Partial)</option><option value="New">New</option><option value="Partial">Partial received</option><option value="Closed">Received / cancelled</option><option value="overdue">Overdue</option>
+          </select>
+          <select class="input" id="fSort" aria-label="Sort">
+            <option value="date">Newest first</option><option value="pending">Pending value, high to low</option><option value="late">Most overdue first</option><option value="value">PO value, high to low</option>
+          </select>
         </div>
-        <div class="panel" id="mailView"></div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><h2>Paste a report email</h2><span class="muted" style="font-size:.8rem">Table with a header row; columns split by | , ; or tab</span></div>
-        <textarea class="input" id="pasteBox" rows="6" placeholder="PO Number | Vendor | Item | Qty | Received | Amount | Order Date | Due Date | Status
-PO-4510301 | Apex Steel | MS plate 6mm | 200 | 0 | 184000 | 2026-10-01 | 2026-10-20 | Approved"></textarea>
-        <div class="row" style="margin-top:10px"><button class="btn primary" id="pasteParse">Parse and import</button><span class="muted" id="pasteMsg"></span></div>
+      <div class="table-wrap" style="max-height:640px">
+        <table>
+          <thead><tr><th></th><th>PO number</th><th>PO date</th><th>Supplier</th><th>Site</th><th>Department</th><th>Ordered by</th><th class="r">Lines</th><th class="r">PO value</th><th class="r">Received</th><th class="r">Pending value</th><th>Delivery</th><th>Status</th><th></th></tr></thead>
+          <tbody id="regRows"></tbody>
+        </table>
       </div>
+      <div class="row" style="margin-top:10px;justify-content:space-between"><span class="muted small" id="regCount"></span><button class="btn" id="regMore" hidden>Show more</button></div>
     </div>
   </section>
 
   <!-- TRACKER -->
-  <section data-view="tracker" hidden>
-    <div style="display:grid;gap:20px">
-      <div class="panel">
-        <div class="panel-head"><h2>Add PO numbers to track</h2></div>
-        <form class="row" id="trackForm">
-          <input class="input mono" id="trackInput" style="flex:1 1 260px" placeholder="e.g. PO-4510235, PO-4510240" aria-label="PO numbers">
-          <button class="btn primary" type="submit">Add to tracker</button>
-        </form>
-        <p class="muted" style="margin:8px 0 0;font-size:.82rem">Separate several numbers with commas or spaces. A PO that is not in any report yet stays on the list and fills in when a report mentions it.</p>
-      </div>
-      <div class="kpis" id="trackKpis"></div>
-      <div class="track-grid" id="trackGrid"></div>
+  <section data-view="tracker" class="stack-v" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Add PO numbers to track</h2></div>
+      <form class="row" id="trackForm">
+        <input class="input mono" id="trackInput" list="poList" style="flex:1 1 260px" placeholder="PO/HSM/00001312/26-27 or just 1312" aria-label="PO numbers" autocomplete="off">
+        <datalist id="poList"></datalist>
+        <button class="btn primary" type="submit">Add to tracker</button>
+      </form>
+      <p class="muted small" style="margin:8px 0 0">Type the full PO number or only its serial number (e.g. <span class="mono">1312</span> or <span class="mono">HSM 1312</span>). Add several at once with commas. A PO that is not in the register yet stays on the list and fills in after the next upload.</p>
     </div>
+    <div class="kpis four" id="trackKpis"></div>
+    <div class="track-grid" id="trackGrid"></div>
   </section>
 
   <!-- UPLOAD -->
-  <section data-view="upload" hidden>
-    <div style="display:grid;gap:20px">
-      <label class="drop" id="drop" for="fileInput">
-        <strong>Drop an Excel or CSV file here</strong>
-        <span class="muted">or click to choose a file (.xlsx, .xls, .csv)</span>
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
-      </label>
-      <div class="panel">
-        <div class="panel-head"><h2>Expected columns</h2><button class="btn" id="copyHeader">Copy header row</button></div>
-        <p class="muted" style="margin:0 0 8px;font-size:.85rem">Only <b>PO Number</b> is required. Column names are matched loosely, so "PO No.", "Supplier" or "Delivery Date" also work. Rows with an existing PO number update that PO.</p>
-        <div class="map" id="expectedCols"></div>
+  <section data-view="upload" class="stack-v" hidden>
+    <label class="drop" id="drop" for="fileInput">
+      <strong>Drop the Purchase Order Report Excel here</strong>
+      <span class="muted">or click to choose a file (.xlsx, .xls, .csv)</span>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+    </label>
+    <div class="panel" id="previewPanel" hidden>
+      <div class="panel-head">
+        <div style="min-width:0"><h2 id="previewTitle">Preview</h2><div class="muted small" id="previewSub"></div></div>
+        <div class="row"><button class="btn" id="cancelImport">Cancel</button><button class="btn primary" id="doImport">Replace register</button></div>
       </div>
-      <div class="panel" id="previewPanel" hidden>
-        <div class="panel-head">
-          <h2 id="previewTitle">Preview</h2>
-          <div class="row"><select class="input" id="sheetSel" aria-label="Sheet"></select><button class="btn primary" id="doImport">Import</button></div>
-        </div>
-        <div class="map" id="mapChips" style="margin-bottom:12px"></div>
-        <div class="table-wrap"><table><thead id="pvHead"></thead><tbody id="pvBody"></tbody></table></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>Import history</h2></div>
-        <div class="list" id="importLog"></div>
-      </div>
+      <div class="kpis four" id="previewKpis" style="margin-bottom:12px"></div>
+      <div class="map" id="mapChips" style="margin-bottom:12px"></div>
+      <div class="table-wrap" style="max-height:360px"><table><thead id="pvHead"></thead><tbody id="pvBody"></tbody></table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>How upload works</h2></div>
+      <p style="margin:0 0 10px;max-width:72ch">Upload the <b>Purchase_Order_Report_New</b> export as it comes from the ERP. Title rows and the totals row are skipped automatically. Each upload is a full snapshot, so it <b>replaces</b> the register. Your tracked PO numbers stay, and any status or pending change on a tracked PO is added to its history.</p>
+      <div class="map" id="expectedCols"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Upload history</h2><button class="btn ghost" id="resetBtn">Clear data and show sample</button></div>
+      <div class="list" id="importLog"></div>
     </div>
   </section>
 </main>
@@ -312,489 +352,588 @@ PO-4510301 | Apex Steel | MS plate 6mm | 200 | 0 | 184000 | 2026-10-01 | 2026-10
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (() => {
-  const CURRENCY = "INR";
   const LOCALE = "en-IN";
-  const STORE_KEY = "podesk.v1";
-  const STATUSES = ["Open", "Approved", "Shipped", "Delivered", "Delayed", "Cancelled"];
-  const FIELDS = [
-    { key: "po", label: "PO Number", alias: ["po", "po number", "po no", "po num", "po#", "purchase order", "purchase order no", "po id", "order number", "order no"] },
-    { key: "vendor", label: "Vendor", alias: ["vendor", "supplier", "vendor name", "supplier name", "party"] },
-    { key: "item", label: "Item", alias: ["item", "description", "material", "product", "item description", "material description"] },
-    { key: "qty", label: "Qty", alias: ["qty", "quantity", "ordered qty", "order qty", "po qty"] },
-    { key: "recvQty", label: "Received", alias: ["received", "received qty", "grn qty", "delivered qty", "recv qty", "qty received"] },
-    { key: "amount", label: "Amount", alias: ["amount", "value", "po value", "total", "net value", "total value"] },
-    { key: "orderDate", label: "Order Date", alias: ["order date", "po date", "created", "created on", "date"] },
-    { key: "dueDate", label: "Due Date", alias: ["due date", "delivery date", "expected date", "eta", "need by", "required date"] },
-    { key: "deliveredDate", label: "Delivered Date", alias: ["delivered date", "received date", "grn date", "delivered on"] },
-    { key: "status", label: "Status", alias: ["status", "po status", "state", "stage"] },
+  const STORE_KEY = "podesk.v2";
+  const STATUSES = ["New", "Partial", "Closed"];
+  const STATUS_LABEL = { New: "New", Partial: "Partial received", Closed: "Received / cancelled" };
+
+  // Column names in the ERP "Purchase_Order_Report_New" export, plus loose alternatives.
+  const COLS = [
+    { key: "po", label: "PO Number", alias: ["po number", "po no", "po num", "purchase order", "purchase order no"], req: true },
+    { key: "created", label: "PO Creation Date", alias: ["po creation date", "po created date", "creation date"] },
+    { key: "remarks", label: "PO Remarks", alias: ["po remarks"] },
+    { key: "orderDate", label: "Order Date", alias: ["order date", "po date"] },
+    { key: "validTill", label: "Valid Till", alias: ["valid till", "validity", "valid upto"] },
+    { key: "deliveryDate", label: "Delivery Date", alias: ["delivery date", "due date", "expected date"] },
+    { key: "partyCode", label: "Party Code", alias: ["party code", "supplier code", "vendor code"] },
+    { key: "party", label: "Party Name", alias: ["party name", "supplier", "supplier name", "vendor", "vendor name"] },
+    { key: "itemCode", label: "Item Code", alias: ["item code"] },
+    { key: "dept", label: "Item Department", alias: ["item department", "department", "category"] },
+    { key: "item", label: "Item Name", alias: ["item name", "item", "item description", "description"] },
+    { key: "rate", label: "Item Rate", alias: ["item rate", "rate"] },
+    { key: "uom", label: "UOM", alias: ["uom", "unit"] },
+    { key: "orderQty", label: "Order Qty", alias: ["order qty", "ordered qty", "qty", "quantity"] },
+    { key: "recvQty", label: "PO Received Qty", alias: ["po received qty", "received qty", "received"] },
+    { key: "cancelQty", label: "PO Cancelled Qty", alias: ["po cancelled qty", "cancelled qty", "cancel qty"] },
+    { key: "pendingQty", label: "PO Pending Qty", alias: ["po pending qty", "pending qty", "balance qty"] },
+    { key: "status", label: "PO Status", alias: ["po status", "status"] },
+    { key: "net", label: "Net Amount", alias: ["net amount", "amount", "po value", "value"] },
+    { key: "site", label: "Site Name", alias: ["site name", "site", "location", "plant"] },
+    { key: "createdBy", label: "Created By", alias: ["created by", "buyer"] },
   ];
 
   // ---------- helpers ----------
   const $ = (s) => document.querySelector(s);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const DAY = 86400000;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const realToday = new Date(); realToday.setHours(0, 0, 0, 0);
   const iso = (d) => { const z = new Date(d); return `${z.getFullYear()}-${String(z.getMonth() + 1).padStart(2, "0")}-${String(z.getDate()).padStart(2, "0")}`; };
   const addDays = (d, n) => new Date(new Date(d).getTime() + n * DAY);
-  const toDate = (s) => (s ? new Date(s + "T00:00:00") : null);
+  const toDate = (s) => new Date(s + "T00:00:00");
   const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / DAY);
-  const fmtDate = (s) => (s ? toDate(s).toLocaleDateString(LOCALE, { day: "2-digit", month: "short" }) : "—");
-  const money = (n, compact) => new Intl.NumberFormat(LOCALE, { style: "currency", currency: CURRENCY, maximumFractionDigits: 0, notation: compact ? "compact" : "standard" }).format(n || 0);
-  const int = (n) => new Intl.NumberFormat(LOCALE).format(n || 0);
+  const fmtDate = (s, y) => (s ? toDate(s).toLocaleDateString(LOCALE, { day: "2-digit", month: "short", ...(y ? { year: "numeric" } : {}) }) : "—");
+  const int = (n) => new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 }).format(n || 0);
+  const rupee = (n) => "₹" + new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(n || 0);
+  const money = (n) => {
+    const a = Math.abs(n || 0);
+    if (a >= 1e7) return "₹" + (n / 1e7).toFixed(2) + " Cr";
+    if (a >= 1e5) return "₹" + (n / 1e5).toFixed(2) + " L";
+    return rupee(n);
+  };
+  const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
   const normPo = (s) => String(s ?? "").trim().toUpperCase().replace(/\s+/g, "");
-  const normHeader = (h) => String(h ?? "").toLowerCase().replace(/[^a-z0-9#]+/g, " ").trim();
-  const nowStamp = () => new Date().toLocaleString(LOCALE, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const normHeader = (h) => String(h ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const siteShort = (s) => { s = String(s || "").trim(); return s.includes(" - ") ? s.split(" - ").pop().trim() : s || "—"; };
+  const personShort = (s) => String(s || "").replace(/\s*\[\d+\]\s*$/, "").trim();
+  const serialOf = (po) => { const m = String(po).match(/(\d{4,})/); return m ? String(+m[1]) : null; };
 
   function toast(msg) {
     const t = $("#toast"); t.textContent = msg; t.hidden = false;
-    clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2800);
+    clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3200);
   }
-
   function parseNum(v) {
-    if (v == null || v === "") return null;
+    if (v == null || v === "" || v === "-") return null;
     if (typeof v === "number") return v;
     const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
     return isNaN(n) ? null : n;
   }
-
   function parseDateVal(v) {
-    if (v == null || v === "") return "";
-    if (v instanceof Date && !isNaN(v)) return iso(v);
-    if (typeof v === "number" && v > 20000 && v < 80000) return iso(new Date(Math.round((v - 25569) * DAY) + new Date().getTimezoneOffset() * 60000));
+    if (v == null || v === "" || v === "-") return "";
+    if (v instanceof Date && !isNaN(v)) return iso(new Date(v.getTime() + 12 * 3600000)); // guard against TZ drift on midnight dates
+    if (typeof v === "number" && v > 20000 && v < 80000) return iso(new Date(Math.round((v - 25569) * DAY) + 12 * 3600000));
     const s = String(v).trim();
     let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
     if (m) return iso(new Date(+m[1], +m[2] - 1, +m[3]));
-    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/); // dd-mm-yyyy
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); // dd-mm-yyyy (Indian format)
     if (m) { const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return iso(new Date(y, +m[2] - 1, +m[1])); }
     const d = new Date(s);
     return isNaN(d) ? "" : iso(d);
   }
-
-  function normStatus(s, qty, recv) {
+  function normStatus(s, l) {
     const t = String(s ?? "").toLowerCase();
-    if (t.includes("cancel")) return "Cancelled";
-    if (/partial/.test(t)) return "Shipped";
-    if (/(deliver|received|closed|complete|grn)/.test(t)) return "Delivered";
-    if (/(delay|hold|late|overdue)/.test(t)) return "Delayed";
-    if (/(ship|transit|dispatch)/.test(t)) return "Shipped";
-    if (/(approv|confirm|accept|released)/.test(t)) return "Approved";
-    if (qty > 0 && recv >= qty) return "Delivered";
-    return t ? "Open" : "";
+    if (t.includes("partial")) return "Partial";
+    if (t.includes("new") || t.includes("open") || t.includes("pending")) return "New";
+    if (/(total|received|cancel|closed|complete|short)/.test(t)) return "Closed";
+    if (l.pendingQty > 0) return l.recvQty > 0 ? "Partial" : "New";
+    return "Closed";
   }
 
-  // map raw header names -> field keys
+  // ---------- parsing an ERP export ----------
   function mapHeaders(headers) {
-    const map = {};
-    headers.forEach((h) => {
-      const n = normHeader(h);
-      if (!n) return;
-      let best = null;
-      for (const f of FIELDS) {
-        if (map[f.key] !== undefined) continue;
-        if (f.alias.includes(n)) { best = f; break; }
-      }
-      if (!best) for (const f of FIELDS) {
-        if (map[f.key] !== undefined) continue;
-        if (f.alias.some((a) => a.length > 3 && n.includes(a))) { best = f; break; }
-      }
-      if (best) map[best.key] = h;
-    });
+    const map = {}, used = new Set();
+    const norm = headers.map(normHeader);
+    for (const c of COLS) { // exact matches first
+      const i = norm.findIndex((h, j) => !used.has(j) && c.alias.includes(h));
+      if (i >= 0) { map[c.key] = i; used.add(i); }
+    }
+    for (const c of COLS) { // then "contains" matches
+      if (map[c.key] !== undefined) continue;
+      const i = norm.findIndex((h, j) => !used.has(j) && h && c.alias.some((a) => a.length > 4 && h.includes(a)));
+      if (i >= 0) { map[c.key] = i; used.add(i); }
+    }
     return map;
   }
 
-  function rowsToPos(rows, headerMap) {
-    const out = [];
-    for (const r of rows) {
-      const get = (k) => (headerMap[k] !== undefined ? r[headerMap[k]] : undefined);
-      const po = normPo(get("po"));
-      if (!po) continue;
-      const qty = parseNum(get("qty"));
-      const recvQty = parseNum(get("recvQty"));
-      out.push({
-        po,
-        vendor: String(get("vendor") ?? "").trim(),
-        item: String(get("item") ?? "").trim(),
-        qty, recvQty,
-        amount: parseNum(get("amount")),
-        orderDate: parseDateVal(get("orderDate")),
-        dueDate: parseDateVal(get("dueDate")),
-        deliveredDate: parseDateVal(get("deliveredDate")),
-        status: normStatus(get("status"), qty || 0, recvQty || 0),
+  function parseWorkbook(wb) {
+    let best = null;
+    for (const name of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+      const hi = rows.slice(0, 40).findIndex((r) => (r || []).some((c) => ["po number", "po no", "purchase order no"].includes(normHeader(c))));
+      if (hi < 0) continue;
+      const headers = rows[hi].map((h) => (h == null ? "" : String(h)));
+      const map = mapHeaders(headers);
+      let reportDate = "", company = "";
+      rows.slice(0, hi).forEach((r) => {
+        const txt = (r || []).filter((c) => c != null).join(" ");
+        const m = txt.match(/print date\s*:?\s*(.+)/i);
+        if (m) reportDate = parseDateVal(m[1].trim());
+        else if (!company && txt && !/report|invalid/i.test(txt)) company = txt.trim();
       });
+      const lines = [];
+      for (const r of rows.slice(hi + 1)) {
+        if (!r) continue;
+        const g = (k) => (map[k] !== undefined ? r[map[k]] : null);
+        const po = String(g("po") ?? "").trim();
+        if (!po || /^page\s*:/i.test(po)) continue; // skips totals and footer rows
+        const l = {
+          po, created: parseDateVal(g("created")), orderDate: parseDateVal(g("orderDate")), validTill: parseDateVal(g("validTill")),
+          deliveryDate: parseDateVal(g("deliveryDate")), remarks: String(g("remarks") ?? "").trim(),
+          partyCode: String(g("partyCode") ?? "").trim(), party: String(g("party") ?? "").trim() || "Unknown supplier",
+          itemCode: String(g("itemCode") ?? "").trim(), dept: String(g("dept") ?? "").trim() || "Unassigned", item: String(g("item") ?? "").trim(),
+          rate: parseNum(g("rate")), uom: String(g("uom") ?? "").trim().toUpperCase(),
+          orderQty: parseNum(g("orderQty")) || 0, recvQty: parseNum(g("recvQty")) || 0, cancelQty: parseNum(g("cancelQty")) || 0,
+          pendingQty: parseNum(g("pendingQty")), net: parseNum(g("net")) || 0,
+          site: String(g("site") ?? "").trim(), createdBy: String(g("createdBy") ?? "").trim(),
+        };
+        if (l.pendingQty == null) l.pendingQty = Math.max(0, l.orderQty - l.recvQty - l.cancelQty);
+        l.status = normStatus(g("status"), l);
+        lines.push(l);
+      }
+      if (!best || lines.length > best.lines.length) best = { sheet: name, headers, map, lines, reportDate, company };
     }
-    return out;
-  }
-
-  // Parse a plain-text report (email body). Finds the header row, splits on | tab ; or ,
-  function parseTextReport(text) {
-    const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const delimOf = (l) => ["|", "\t", ";", ","].sort((a, b) => l.split(b).length - l.split(a).length)[0];
-    const split = (l, d) => l.replace(/^\||\|$/g, "").split(d).map((c) => c.trim());
-    const poAlias = FIELDS[0].alias;
-    // header row = at least 3 columns, one of which is a PO-number column name
-    const hi = lines.findIndex((l) => { const c = split(l, delimOf(l)); return c.length >= 3 && c.some((x) => poAlias.includes(normHeader(x))); });
-    if (hi < 0) return { rows: [], map: {} };
-    const head = lines[hi];
-    const delim = delimOf(head);
-    const headers = split(head, delim);
-    const rows = [];
-    for (const l of lines.slice(hi + 1)) {
-      if (/^[|\-\s:+]+$/.test(l)) continue; // markdown separator
-      const cells = split(l, delim);
-      if (cells.length < 2) continue;
-      const o = {}; headers.forEach((h, i) => (o[h] = cells[i]));
-      rows.push(o);
-    }
-    const map = mapHeaders(headers);
-    return { rows: rowsToPos(rows, map), map, headers };
+    return best;
   }
 
   // ---------- state ----------
   let state;
-  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
-  function load() {
-    try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.pos) return s; } catch (e) {}
-    return seed();
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; }
+    catch (e) { return false; }
   }
+  function load() {
+    try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.lines) return s; } catch (e) {}
+    return { lines: sampleLines(), meta: { sample: true, fileName: "Sample data", reportDate: iso(realToday), uploadedAt: "" }, watch: [], imports: [], history: {} };
+  }
+  const asOf = () => state.meta.reportDate || iso(realToday);
 
-  function upsert(list, source) {
-    let added = 0, updated = 0;
-    const stamp = iso(today);
-    for (const n of list) {
-      const cur = state.pos[n.po];
-      if (!cur) {
-        state.pos[n.po] = { ...n, status: n.status || "Open", source, history: [{ at: stamp, source, status: n.status || "Open" }] };
-        added++;
-      } else {
-        const prevStatus = cur.status;
-        for (const k of Object.keys(n)) if (n[k] !== "" && n[k] != null) cur[k] = n[k];
-        cur.source = source;
-        if (n.status && n.status !== prevStatus) cur.history.push({ at: stamp, source, status: n.status });
-        updated++;
+  // ---------- sample data (same shape as the ERP export; fictional suppliers) ----------
+  function sampleLines() {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const parties = ["Shakti Polymers", "Mehta Zipper Works", "Rainbow Labels", "Om Sai Packaging", "Krishna Foam Industries", "Unique Chain Works", "Sagar Textiles", "Gupta Hardware Fittings", "Classic Trims", "Nova Fabrics"];
+    const items = [
+      ["Hard Luggage", "ABS shell 24 inch", "PCS", 410], ["Label", "Woven label 40x20", "PCS", 1.8], ["Matty", "PVC matty 340 BLK", "MTR", 82], ["Chain", "Zipper chain #8 coil", "MTR", 6.5],
+      ["Ully", "Polyester ully 600D", "MTR", 54], ["Travelling Bag", "Trolley duffel 22 inch", "PCS", 690], ["Stationery", "Rivet tablet NKL", "PCS", 0.25], ["Runner", "Slider #8 auto lock", "PCS", 3.1],
+      ["Foam", "EPE foam 5mm", "MTR", 24], ["Corrugated Box packing", "Carton 35x25x21 5-ply", "PCS", 139], ["Sponge", "Sponge sheet 3mm", "MTR", 31], ["Tag", "Hang tag printed", "PCS", 1.2],
+    ];
+    const sites = ["Muzaffarpur", "Muzaffarpur", "Bhiwandi", "Muzaffarpur B7", "Nashik"];
+    const buyers = ["Priya Shah [11]", "Rahul Verma [23]", "Anita Rao [31]", "Vikram Singh [45]"];
+    const lines = [];
+    for (let i = 0; i < 72; i++) {
+      const age = Math.floor(70 - i * 0.95);
+      const created = addDays(realToday, -age);
+      const site = pick(sites);
+      const prefix = site === "Bhiwandi" ? "HSB" : site === "Nashik" ? "HSN" : "HSM";
+      const po = `PO/${prefix}/${String(1200 + i * 3).padStart(8, "0")}/26-27`;
+      const party = pick(parties), by = pick(buyers);
+      const lead = 5 + Math.floor(rnd() * 22);
+      const delivery = addDays(created, lead);
+      const nLines = 1 + Math.floor(rnd() * rnd() * 6);
+      const daysPastDue = daysBetween(iso(delivery), iso(realToday));
+      const remarks = pick(["Plan_October Order", "Monthly requisition plan", "Urgent top-up", "Lot 2 delivery", "Festive season plan"]);
+      for (let k = 0; k < nLines; k++) {
+        const [dept, item, uom, rate] = pick(items);
+        const qty = Math.round((50 + rnd() * 950) * (rate < 5 ? 40 : 1));
+        let recv = 0, cancel = 0;
+        const r = rnd();
+        if (daysPastDue > 20 && r < 0.75) { recv = qty; if (rnd() < 0.15) { recv = Math.round(qty * 0.8); cancel = qty - recv; } }
+        else if (daysPastDue > -3 && r < 0.55) recv = Math.round(qty * (0.2 + rnd() * 0.6));
+        else if (daysPastDue > 5 && r < 0.8) recv = qty;
+        const pending = qty - recv - cancel;
+        const gst = rate > 100 ? 0.18 : 0.05;
+        lines.push({ po, created: iso(created), orderDate: iso(created), validTill: iso(addDays(created, 60 + (i % 3) * 30)), deliveryDate: iso(delivery), remarks,
+          partyCode: String(2000 + parties.indexOf(party)), party, itemCode: "INV" + (19000 + items.findIndex((x) => x[1] === item)), dept, item, rate, uom,
+          orderQty: qty, recvQty: recv, cancelQty: cancel, pendingQty: pending, net: Math.round(qty * rate * (1 + gst) * 100) / 100,
+          site: "Sample Company - " + site, createdBy: by, status: pending > 0 ? (recv > 0 ? "Partial" : "New") : "Closed" });
       }
     }
-    save();
-    return { added, updated };
-  }
-
-  // ---------- sample data (relative to today) ----------
-  function seed() {
-    const vendors = ["Apex Steel", "Nordic Packaging", "Shree Textiles", "BlueLine Logistics", "Kaveri Components", "Orion Plastics"];
-    const items = [["MS plate 6mm", 920], ["Corrugated box 5-ply", 38], ["Cotton fabric 60s", 210], ["Pallet wrap film", 145], ["Bearing 6205-ZZ", 165], ["HDPE granules", 118], ["Hex bolt M12", 14], ["Label roll 100x50", 260]];
-    const rows = [];
-    for (let i = 0; i < 26; i++) {
-      const order = addDays(today, -44 + Math.round(i * 1.6));
-      const lead = 12 + ((i * 7) % 15);
-      const due = addDays(order, lead);
-      const dtd = Math.round((due - today) / DAY);
-      const [item, price] = items[(i * 3) % items.length];
-      const qty = (((i * 37) % 9) + 1) * 50;
-      let status, recv = 0, delivered = "";
-      if (i % 11 === 5) status = "Cancelled";
-      else if (dtd < -2) {
-        if (i % 5 === 0) { status = "Delayed"; recv = Math.round(qty * 0.4); }
-        else { status = "Delivered"; recv = qty; delivered = iso(addDays(due, (i % 4) - 2)); }
-      } else if (dtd < 4) status = i % 4 === 1 ? "Delayed" : "Shipped";
-      else status = i % 2 ? "Approved" : "Open";
-      rows.push({ po: "PO-" + (4510231 + i), vendor: vendors[(i * 5) % vendors.length], item, qty, recvQty: recv, amount: qty * price, orderDate: iso(order), dueDate: iso(due), deliveredDate: delivered, status });
-    }
-    const toBody = (subset, intro) => {
-      const h = "PO Number | Vendor | Item | Qty | Received | Amount | Order Date | Due Date | Delivered Date | Status";
-      const lines = subset.map((r) => [r.po, r.vendor, r.item, r.qty, r.recvQty, r.amount, r.orderDate, r.dueDate, r.deliveredDate, r.status].join(" | "));
-      return `Hi team,\n\n${intro}\n\n${h}\n${lines.join("\n")}\n\nRegards,\nERP Reporting (auto-generated)`;
-    };
-    // newest email: updates + new POs, not yet imported
-    const fresh = rows.filter((r) => r.status === "Shipped").slice(0, 3).map((r) => ({ ...r, status: "Delivered", recvQty: r.qty, deliveredDate: iso(today) }));
-    const newPos = [0, 1, 2].map((k) => {
-      const [item, price] = items[(k * 5 + 1) % items.length]; const qty = (k + 2) * 100;
-      return { po: "PO-" + (4510257 + k), vendor: vendors[(k * 2 + 1) % vendors.length], item, qty, recvQty: 0, amount: qty * price, orderDate: iso(today), dueDate: iso(addDays(today, 14 + k * 4)), deliveredDate: "", status: "Approved" };
+    // keep a PO's status consistent across its lines, like the ERP does
+    const byPo = {};
+    lines.forEach((l) => (byPo[l.po] = byPo[l.po] || []).push(l));
+    Object.values(byPo).forEach((ls) => {
+      const pend = ls.some((l) => l.pendingQty > 0), rec = ls.some((l) => l.recvQty > 0);
+      ls.forEach((l) => (l.status = pend ? (rec ? "Partial" : "New") : "Closed"));
     });
-    const queued = [{ ...rows[rows.length - 1], status: "Shipped" }, { ...rows[rows.length - 3], status: "Delayed" }];
-
-    const s = { pos: {}, emails: [], watch: [], imports: [], queued: null };
-    state = s;
-    const fmtSubj = (d) => `Daily PO Status Report — ${toDate(iso(d)).toLocaleDateString(LOCALE, { day: "2-digit", month: "short", year: "numeric" })}`;
-    s.emails = [
-      { id: "m3", subject: fmtSubj(today), from: "erp-reports@yourcompany.com", received: iso(today) + " 07:05", body: toBody([...fresh, ...newPos], "Please find today's open PO status below. 3 deliveries confirmed, 3 new POs released."), imported: false },
-      { id: "m2", subject: fmtSubj(addDays(today, -1)), from: "erp-reports@yourcompany.com", received: iso(addDays(today, -1)) + " 07:04", body: toBody(rows.slice(9), "Please find today's open PO status below."), imported: true },
-      { id: "m1", subject: fmtSubj(addDays(today, -2)), from: "erp-reports@yourcompany.com", received: iso(addDays(today, -2)) + " 07:06", body: toBody(rows.slice(0, 14), "Please find today's open PO status below."), imported: true },
-    ];
-    s.queued = { id: "m4", subject: "Shipment status update — BlueLine Logistics", from: "dispatch@bluelinelogistics.example", received: iso(today) + " 11:20", body: toBody(queued, "Dispatch status for your open orders:"), imported: false };
-    for (const r of rows) {
-      const src = rows.indexOf(r) % 3 === 0 ? "Excel" : "Email";
-      s.pos[r.po] = { ...r, source: src, history: [{ at: r.orderDate, source: src, status: "Open" }, ...(r.status !== "Open" ? [{ at: iso(addDays(today, -1)), source: src, status: r.status }] : [])] };
-    }
-    s.imports = [
-      { at: iso(addDays(today, -1)) + " 07:10", source: "Email", name: s.emails[1].subject, added: 3, updated: 14 },
-      { at: iso(addDays(today, -3)) + " 16:42", source: "Excel", name: "open_po_export_week41.xlsx", added: 9, updated: 0 },
-      { at: iso(addDays(today, -2)) + " 07:10", source: "Email", name: s.emails[2].subject, added: 14, updated: 0 },
-    ];
-    s.watch = [rows[4].po, rows[14].po, rows[20].po, "PO-4510259", "PO-4510999"];
-    save();
-    return s;
+    return lines;
   }
 
   // ---------- derived ----------
-  const isOpen = (p) => p.status !== "Delivered" && p.status !== "Cancelled";
-  const isLate = (p) => isOpen(p) && p.dueDate && p.dueDate < iso(today);
-  const allPos = () => Object.values(state.pos);
-
-  function kpis(list) {
-    const active = list.filter((p) => p.status !== "Cancelled");
-    const open = list.filter(isOpen);
-    const delivered = list.filter((p) => p.status === "Delivered" && p.deliveredDate && p.dueDate);
-    const onTime = delivered.filter((p) => p.deliveredDate <= p.dueDate).length;
-    const ordered = active.reduce((a, p) => a + (p.qty || 0), 0);
-    const recv = active.reduce((a, p) => a + Math.min(p.recvQty || 0, p.qty || 0), 0);
-    const leads = delivered.filter((p) => p.orderDate).map((p) => daysBetween(p.orderDate, p.deliveredDate));
+  const filt = { site: "", dept: "", party: "", by: "" };
+  function lineValue(l) {
+    const unit = l.orderQty > 0 ? l.net / l.orderQty : 0;
+    return { recv: unit * Math.min(l.recvQty, l.orderQty), cancel: unit * l.cancelQty, pend: unit * Math.max(0, l.pendingQty) };
+  }
+  function aggregate(lines) {
+    const map = new Map();
+    const today = asOf();
+    for (const l of lines) {
+      let p = map.get(l.po);
+      if (!p) {
+        p = { po: l.po, created: l.created || l.orderDate, orderDate: l.orderDate, validTill: l.validTill, remarks: l.remarks, party: l.party, partyCode: l.partyCode,
+          site: l.site, createdBy: l.createdBy, status: l.status, lines: [], value: 0, recvV: 0, cancelV: 0, pendV: 0, depts: new Set(), delivery: "", lastDelivery: "" };
+        map.set(l.po, p);
+      }
+      const v = lineValue(l);
+      p.lines.push(l); p.value += l.net; p.recvV += v.recv; p.cancelV += v.cancel; p.pendV += v.pend; p.depts.add(l.dept);
+      if (l.pendingQty > 0 && l.deliveryDate && (!p.delivery || l.deliveryDate < p.delivery)) p.delivery = l.deliveryDate;
+      if (l.deliveryDate && l.deliveryDate > p.lastDelivery) p.lastDelivery = l.deliveryDate;
+      if (l.status !== "Closed" && p.status === "Closed") p.status = l.status;
+    }
+    for (const p of map.values()) {
+      if (!p.delivery) p.delivery = p.lastDelivery;
+      p.open = p.status !== "Closed" && p.pendV > 0.5;
+      p.lateDays = p.open && p.delivery && p.delivery < today ? daysBetween(p.delivery, today) : 0;
+      p.recvPct = pct(p.recvV, p.value - p.cancelV);
+      p.expiring = p.open && p.validTill && p.validTill >= today && daysBetween(today, p.validTill) <= 15;
+      p.expired = p.open && p.validTill && p.validTill < today;
+    }
+    return [...map.values()];
+  }
+  function filteredLines() {
+    return state.lines.filter((l) => (!filt.site || l.site === filt.site) && (!filt.dept || l.dept === filt.dept) && (!filt.party || l.party === filt.party) && (!filt.by || l.createdBy === filt.by));
+  }
+  let cache = { key: null, pos: null, all: null };
+  function data() {
+    const key = JSON.stringify(filt) + state.lines.length + state.meta.uploadedAt;
+    if (cache.key !== key) {
+      cache = { key, pos: aggregate(filteredLines()), all: aggregate(state.lines) };
+      cache.allByPo = new Map(cache.all.map((p) => [p.po, p]));
+    }
+    return cache;
+  }
+  function kpis(pos) {
+    const open = pos.filter((p) => p.open);
+    const late = open.filter((p) => p.lateDays > 0);
+    const value = pos.reduce((a, p) => a + p.value, 0);
+    const cancel = pos.reduce((a, p) => a + p.cancelV, 0);
+    const recv = pos.reduce((a, p) => a + p.recvV, 0);
+    const pend = open.reduce((a, p) => a + p.pendV, 0);
     return {
-      total: list.length, open: open.length,
-      openValue: open.reduce((a, p) => a + (p.amount || 0), 0),
-      otd: delivered.length ? Math.round((onTime / delivered.length) * 100) : null, deliveredCount: delivered.length,
-      late: list.filter(isLate).length,
-      fill: ordered ? Math.round((recv / ordered) * 100) : null,
-      lead: leads.length ? Math.round(leads.reduce((a, b) => a + b, 0) / leads.length) : null,
+      count: pos.length, lines: pos.reduce((a, p) => a + p.lines.length, 0), value, cancel, recv, pend,
+      open: open.length, newC: open.filter((p) => p.status === "New").length, partial: open.filter((p) => p.status === "Partial").length,
+      late: late.length, lateV: late.reduce((a, p) => a + p.pendV, 0),
+      recvPct: pct(recv, value - cancel), expiring: open.filter((p) => p.expiring).length, expired: open.filter((p) => p.expired).length,
     };
   }
+  const tile = ([l, v, s, c]) => `<div class="kpi ${c || ""}"><span class="label">${l}</span><span class="value">${v}</span><span class="sub">${s}</span></div>`;
+  const pill = (s) => `<span class="pill s-${esc(s)}">${esc(STATUS_LABEL[s] || s)}</span>`;
+  const lateChip = (p) => (p.lateDays > 0 ? `<span class="chip crit">${p.lateDays} d late</span>` : "");
 
   // ---------- render: overview ----------
+  function bars(el, entries, fmt, cls) {
+    const max = entries[0]?.[1] || 1;
+    $(el).innerHTML = entries.length ? entries.map(([n, v, c]) => `<div class="bar-row"><span class="name" title="${esc(n)}">${esc(n)}</span><div class="bar-track"><div class="bar-fill ${c || cls || ""}" style="width:${Math.max(1, (v / max) * 100)}%"></div></div><span class="num muted val">${fmt(v)}</span></div>`).join("") : `<div class="empty">No pending value</div>`;
+  }
+  function topBy(pos, keyFn) {
+    const m = {};
+    for (const p of pos) for (const l of p.lines) { if (!p.open) continue; const k = keyFn(p, l); m[k] = (m[k] || 0) + lineValue(l).pend; }
+    return Object.entries(m).filter((e) => e[1] > 0.5).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }
+  function li(p, right) {
+    return `<div class="list-item"><div><span class="mono">${esc(p.po)}</span><div class="muted small">${esc(p.party)} · ${esc(siteShort(p.site))} · pending ${money(p.pendV)}</div></div><div class="row">${pill(p.status)}${right}</div></div>`;
+  }
   function renderOverview() {
-    const list = allPos();
-    const k = kpis(list);
+    const { pos } = data();
+    const k = kpis(pos);
     $("#kpis").innerHTML = [
-      ["Total POs", int(k.total), `${k.open} open`, ""],
-      ["Open PO value", money(k.openValue, true), money(k.openValue), ""],
-      ["On-time delivery", k.otd == null ? "—" : k.otd + "%", `${k.deliveredCount} delivered POs`, k.otd >= 85 ? "good" : k.otd < 70 ? "alert" : ""],
-      ["Overdue POs", int(k.late), "open past due date", k.late ? "alert" : "good"],
-      ["Fill rate", k.fill == null ? "—" : k.fill + "%", "received ÷ ordered qty", ""],
-      ["Avg lead time", k.lead == null ? "—" : k.lead + " d", "order to delivery", ""],
-    ].map(([l, v, s, c]) => `<div class="kpi ${c}"><span class="label">${l}</span><span class="value">${v}</span><span class="sub">${s}</span></div>`).join("");
+      ["Total POs", int(k.count), `${int(k.lines)} item lines`],
+      ["PO value", money(k.value), "net amount incl. GST"],
+      ["Open POs", int(k.open), `${k.newC} new · ${k.partial} partially received`],
+      ["Pending value", money(k.pend), `${pct(k.pend, k.value)}% of PO value still to come`, "warn"],
+      ["Overdue POs", int(k.late), `${money(k.lateV)} pending past delivery date`, k.late ? "alert" : "good"],
+      ["Received", k.recvPct + "%", `${money(k.recv)} received by value`, k.recvPct >= 80 ? "good" : ""],
+      ["Cancelled value", money(k.cancel), `${pct(k.cancel, k.value)}% of PO value`],
+      ["Validity ending", int(k.expiring), `open POs expiring in 15 days · ${k.expired} already expired`, k.expiring || k.expired ? "warn" : ""],
+    ].map(tile).join("");
 
-    // status stack
-    const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
-    list.forEach((p) => (counts[p.status] = (counts[p.status] || 0) + 1));
-    $("#mixTotal").textContent = `${list.length} POs`;
-    $("#statusStack").innerHTML = STATUSES.filter((s) => counts[s]).map((s) => `<span class="c-${s}" style="width:${(counts[s] / list.length) * 100}%" title="${s}: ${counts[s]}"></span>`).join("");
-    $("#statusLegend").innerHTML = STATUSES.map((s) => `<span><i class="c-${s}"></i>${s} <b class="num">${counts[s]}</b></span>`).join("");
+    // status
+    const st = Object.fromEntries(STATUSES.map((s) => [s, { n: 0, v: 0 }]));
+    pos.forEach((p) => { const s = st[p.status] || st.Closed; s.n++; s.v += p.value; });
+    const tv = pos.reduce((a, p) => a + p.value, 0) || 1;
+    $("#statusStack").innerHTML = STATUSES.filter((s) => st[s].v).map((s) => `<span class="c-${s}" style="width:${(st[s].v / tv) * 100}%" title="${STATUS_LABEL[s]}: ${money(st[s].v)}"></span>`).join("");
+    $("#statusGrid").innerHTML = STATUSES.map((s) => `<div><span class="small"><i class="c-${s}" style="display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px"></i>${STATUS_LABEL[s]}</span><b>${int(st[s].n)} POs</b><span class="muted small num">${money(st[s].v)}</span></div>`).join("");
 
-    // vendor bars
-    const byV = {};
-    list.filter(isOpen).forEach((p) => (byV[p.vendor || "Unknown"] = (byV[p.vendor || "Unknown"] || 0) + (p.amount || 0)));
-    const vs = Object.entries(byV).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    const max = vs[0]?.[1] || 1;
-    $("#vendorBars").innerHTML = vs.length ? vs.map(([v, a]) => `<div class="bar-row"><span class="name" title="${esc(v)}">${esc(v)}</span><div class="bar-track"><div class="bar-fill" style="width:${(a / max) * 100}%"></div></div><span class="num muted">${money(a, true)}</span></div>`).join("") : `<div class="empty">No open POs</div>`;
+    // ageing of pending value
+    const buckets = [["Not yet due", 0, ""], ["1–7 days late", 0, "warn"], ["8–15 days late", 0, "warn"], ["16–30 days late", 0, "crit"], ["Over 30 days late", 0, "crit"]];
+    pos.filter((p) => p.open).forEach((p) => {
+      const d = p.lateDays, i = d <= 0 ? 0 : d <= 7 ? 1 : d <= 15 ? 2 : d <= 30 ? 3 : 4;
+      buckets[i][1] += p.pendV;
+    });
+    const bmax = Math.max(...buckets.map((b) => b[1])) || 1;
+    $("#ageBars").innerHTML = buckets.map(([n, v, c]) => `<div class="bar-row"><span class="name">${n}</span><div class="bar-track"><div class="bar-fill ${c}" style="width:${v ? Math.max(1, (v / bmax) * 100) : 0}%"></div></div><span class="num muted val">${money(v)}</span></div>`).join("");
 
-    // overdue & due soon
-    const late = list.filter(isLate).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-    $("#overdueCount").textContent = `${late.length} POs`;
-    $("#overdueList").innerHTML = late.length ? late.slice(0, 6).map((p) => li(p, `<span class="chip crit">${daysBetween(p.dueDate, iso(today))} d late</span>`)).join("") : `<div class="empty">Nothing overdue</div>`;
-    const soon = list.filter((p) => isOpen(p) && p.dueDate >= iso(today) && p.dueDate <= iso(addDays(today, 7))).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-    $("#dueCount").textContent = `${soon.length} POs`;
-    $("#dueList").innerHTML = soon.length ? soon.slice(0, 6).map((p) => { const d = daysBetween(iso(today), p.dueDate); return li(p, `<span class="chip ${d <= 2 ? "warn" : ""}">${d === 0 ? "today" : "in " + d + " d"}</span>`); }).join("") : `<div class="empty">Nothing due this week</div>`;
+    bars("#partyBars", topBy(pos, (p) => p.party), money);
+    bars("#deptBars", topBy(pos, (p, l) => l.dept), money);
 
-    renderTable();
+    const late = pos.filter((p) => p.lateDays > 0).sort((a, b) => b.pendV - a.pendV);
+    $("#overdueCount").textContent = `${late.length} POs · ${money(late.reduce((a, p) => a + p.pendV, 0))}`;
+    $("#overdueList").innerHTML = late.length ? late.slice(0, 8).map((p) => li(p, lateChip(p) + trackBtn(p.po))).join("") + (late.length > 8 ? `<button class="btn ghost" data-goto-overdue style="margin-top:8px">See all ${late.length} overdue POs in the register</button>` : "") : `<div class="empty">Nothing overdue</div>`;
+    const today = asOf(), wk = iso(addDays(toDate(today), 7));
+    const soon = pos.filter((p) => p.open && p.delivery >= today && p.delivery <= wk).sort((a, b) => a.delivery.localeCompare(b.delivery));
+    $("#dueCount").textContent = `${soon.length} POs · ${money(soon.reduce((a, p) => a + p.pendV, 0))}`;
+    $("#dueList").innerHTML = soon.length ? soon.slice(0, 8).map((p) => { const d = daysBetween(today, p.delivery); return li(p, `<span class="chip ${d <= 2 ? "warn" : ""}">${d === 0 ? "due today" : "in " + d + " d"}</span>` + trackBtn(p.po)); }).join("") : `<div class="empty">Nothing due in the next 7 days</div>`;
+
+    const depts = {};
+    pos.forEach((p) => p.lines.forEach((l) => {
+      const d = (depts[l.dept] ||= { pos: new Set(), late: new Set(), n: 0, qty: {}, net: 0, recv: 0, pend: 0 });
+      const v = lineValue(l);
+      d.pos.add(p.po); d.n++; d.net += l.net; d.recv += v.recv;
+      if (p.open) d.pend += v.pend;
+      if (p.lateDays > 0 && l.pendingQty > 0) d.late.add(p.po);
+      const u = l.uom || "—"; d.qty[u] = (d.qty[u] || 0) + l.orderQty;
+    }));
+    const qtyTxt = (q) => Object.entries(q).sort((a, b) => b[1] - a[1]).map(([u, n]) => `${int(Math.round(n))} ${esc(u)}`).join(" · ");
+    $("#deptRows").innerHTML = Object.entries(depts).sort((a, b) => b[1].net - a[1].net).map(([n, d]) => `<tr><td>${esc(n)}</td><td class="r num">${int(d.pos.size)}</td><td class="r num">${int(d.n)}</td><td class="num">${qtyTxt(d.qty)}</td><td class="r num">${money(d.net)}</td><td class="r num">${money(d.recv)}</td><td class="r num">${money(d.pend)}</td><td class="r num">${d.late.size ? `<span class="chip crit">${d.late.size}</span>` : "0"}</td></tr>`).join("") || `<tr><td colspan="8" class="empty">No POs match these filters</td></tr>`;
+
+    const bys = {};
+    pos.forEach((p) => {
+      const b = (bys[personShort(p.createdBy) || "—"] ||= { n: 0, lines: 0, v: 0, open: 0, pend: 0, late: 0 });
+      b.n++; b.lines += p.lines.length; b.v += p.value; if (p.open) { b.open++; b.pend += p.pendV; } if (p.lateDays > 0) b.late++;
+    });
+    $("#byRows").innerHTML = Object.entries(bys).sort((a, b) => b[1].v - a[1].v).map(([n, b]) => `<tr><td>${esc(n)}</td><td class="r num">${int(b.n)}</td><td class="r num">${int(b.lines)}</td><td class="r num">${money(b.v)}</td><td class="r num">${int(b.open)}</td><td class="r num">${money(b.pend)}</td><td class="r num">${b.late ? `<span class="chip crit">${b.late}</span>` : "0"}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">No POs match these filters</td></tr>`;
+
+    const sites = {};
+    pos.forEach((p) => {
+      const s = (sites[siteShort(p.site)] ||= { n: 0, open: 0, v: 0, pend: 0, late: 0, lateV: 0 });
+      s.n++; s.v += p.value; if (p.open) { s.open++; s.pend += p.pendV; } if (p.lateDays > 0) { s.late++; s.lateV += p.pendV; }
+    });
+    $("#siteRows").innerHTML = Object.entries(sites).sort((a, b) => b[1].v - a[1].v).map(([n, s]) => `<tr><td>${esc(n)}</td><td class="r num">${int(s.n)}</td><td class="r num">${int(s.open)}</td><td class="r num">${money(s.v)}</td><td class="r num">${money(s.pend)}</td><td class="r num">${s.late ? `<span class="chip crit">${s.late}</span>` : "0"}</td><td class="r num">${money(s.lateV)}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">No POs match these filters</td></tr>`;
   }
+  const trackBtn = (po) => { const w = state.watch.includes(po); return `<button class="btn ghost small" data-watch="${esc(po)}" aria-pressed="${w}">${w ? "Tracking" : "+ Track"}</button>`; };
 
-  const li = (p, right) => `<div class="list-item"><div style="min-width:0"><span class="mono">${esc(p.po)}</span> <span class="muted">· ${esc(p.vendor)}</span><div class="muted" style="font-size:.8rem">${esc(p.item)} · ${money(p.amount)}</div></div><div class="row">${pill(p.status)}${right}</div></div>`;
-  const pill = (s) => `<span class="pill s-${esc(s)}">${esc(s)}</span>`;
-
-  function renderTable() {
+  // ---------- render: register ----------
+  let regLimit = 150;
+  const expanded = new Set();
+  function renderRegister() {
+    const { pos } = data();
     const q = $("#q").value.trim().toLowerCase();
-    const fs = $("#fStatus").value, fsrc = $("#fSource").value;
-    const list = allPos().filter((p) => (!fs || p.status === fs) && (!fsrc || p.source === fsrc) && (!q || `${p.po} ${p.vendor} ${p.item}`.toLowerCase().includes(q)))
-      .sort((a, b) => (b.orderDate || "").localeCompare(a.orderDate || ""));
-    $("#poRows").innerHTML = list.length ? list.map((p) => {
-      const w = state.watch.includes(p.po);
-      return `<tr class="${isLate(p) ? "late" : ""}"><td class="mono">${esc(p.po)}</td><td>${esc(p.vendor)}</td><td>${esc(p.item)}</td><td class="r num">${p.qty == null ? "—" : int(p.qty)}</td><td class="r num">${p.recvQty == null ? "—" : int(p.recvQty)}</td><td class="r num">${p.amount == null ? "—" : money(p.amount)}</td><td class="num">${fmtDate(p.orderDate)}</td><td class="num">${fmtDate(p.dueDate)}${isLate(p) ? ' <span class="chip crit">late</span>' : ""}</td><td>${pill(p.status)}</td><td><span class="chip">${esc(p.source)}</span></td><td><button class="btn ghost" data-watch="${esc(p.po)}" aria-pressed="${w}">${w ? "Tracking" : "+ Track"}</button></td></tr>`;
-    }).join("") : `<tr><td colspan="11" class="empty">No POs match these filters</td></tr>`;
+    const fs = $("#fStatus").value, sort = $("#fSort").value;
+    let list = pos.filter((p) => {
+      if (fs === "open" && !p.open) return false;
+      if (fs === "overdue" && !(p.lateDays > 0)) return false;
+      if (STATUSES.includes(fs) && p.status !== fs) return false;
+      if (q && !`${p.po} ${p.party} ${p.remarks} ${p.lines.map((l) => l.item + " " + l.itemCode).join(" ")}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const sorters = {
+      date: (a, b) => (b.created || "").localeCompare(a.created || "") || b.po.localeCompare(a.po),
+      pending: (a, b) => b.pendV - a.pendV, late: (a, b) => b.lateDays - a.lateDays || b.pendV - a.pendV, value: (a, b) => b.value - a.value,
+    };
+    list.sort(sorters[sort]);
+    $("#regCount").textContent = `${int(list.length)} POs · ${money(list.reduce((a, p) => a + p.value, 0))} PO value · ${money(list.filter((p) => p.open).reduce((a, p) => a + p.pendV, 0))} pending`;
+    $("#regMore").hidden = list.length <= regLimit;
+    $("#regRows").innerHTML = list.length ? list.slice(0, regLimit).map((p) => {
+      const ex = expanded.has(p.po);
+      const depts = [...p.depts];
+      const row = `<tr class="po-row ${p.lateDays > 0 ? "late" : ""}" data-expand="${esc(p.po)}" aria-expanded="${ex}"><td><span class="caret">▸</span></td><td class="mono">${esc(p.po)}</td><td class="num">${fmtDate(p.created)}</td><td class="trunc" title="${esc(p.party)}">${esc(p.party)}</td><td>${esc(siteShort(p.site))}</td><td>${esc(depts[0])}${depts.length > 1 ? ` <span class="muted">+${depts.length - 1}</span>` : ""}</td><td>${esc(personShort(p.createdBy))}</td><td class="r num">${p.lines.length}</td><td class="r num">${money(p.value)}</td><td class="r num">${p.recvPct}%</td><td class="r num">${p.open ? money(p.pendV) : "—"}</td><td class="num">${fmtDate(p.delivery)} ${lateChip(p)}</td><td>${pill(p.status)}</td><td>${trackBtn(p.po)}</td></tr>`;
+      return row + (ex ? `<tr class="detail"><td colspan="14">${linesTable(p)}</td></tr>` : "");
+    }).join("") : `<tr><td colspan="14" class="empty">No POs match. Try clearing the search or filters.</td></tr>`;
   }
-
-  // ---------- render: email ----------
-  let selectedMail = null;
-  function renderEmail() {
-    if (!selectedMail || !state.emails.find((m) => m.id === selectedMail)) selectedMail = state.emails[0]?.id;
-    $("#mailList").innerHTML = state.emails.map((m) => {
-      const n = parseTextReport(m.body).rows.length;
-      return `<button class="mail-item" data-mail="${m.id}" aria-current="${m.id === selectedMail}"><span class="subj">${esc(m.subject)}</span><span class="meta"><span>${esc(m.from)}</span><span class="num">${esc(m.received.slice(5))}</span></span><span class="meta"><span>${n} POs in report</span>${m.imported ? '<span class="chip good">Imported</span>' : '<span class="chip warn">New</span>'}</span></button>`;
-    }).join("");
-    const m = state.emails.find((x) => x.id === selectedMail);
-    if (!m) { $("#mailView").innerHTML = `<div class="empty">No report emails yet</div>`; return; }
-    const parsed = parseTextReport(m.body);
-    const rows = parsed.rows.map((r) => {
-      const cur = state.pos[r.po];
-      const change = !cur ? '<span class="chip good">new</span>' : cur.status !== r.status && r.status ? `<span class="chip warn">${esc(cur.status)} → ${esc(r.status)}</span>` : '<span class="chip">no change</span>';
-      return `<tr><td class="mono">${esc(r.po)}</td><td>${esc(r.vendor)}</td><td class="r num">${r.qty == null ? "—" : int(r.qty)}</td><td class="num">${fmtDate(r.dueDate)}</td><td>${r.status ? pill(r.status) : "—"}</td><td>${m.imported ? "" : change}</td></tr>`;
-    }).join("");
-    $("#mailView").innerHTML = `
-      <div class="panel-head"><div style="min-width:0"><h2>${esc(m.subject)}</h2><div class="muted" style="font-size:.8rem">From ${esc(m.from)} · ${esc(m.received)}</div></div>
-      ${m.imported ? '<span class="chip good">Imported</span>' : `<button class="btn primary" data-import-mail="${m.id}">Import ${parsed.rows.length} POs</button>`}</div>
-      <div style="display:grid;gap:12px">
-        <div class="mail-body">${esc(m.body)}</div>
-        <span class="label">Extracted from email · ${parsed.rows.length} rows</span>
-        <div class="table-wrap"><table><thead><tr><th>PO number</th><th>Vendor</th><th class="r">Qty</th><th>Due</th><th>Status</th><th>${m.imported ? "" : "Change"}</th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="empty">No PO table found in this email</td></tr>'}</tbody></table></div>
-      </div>`;
+  function linesTable(p, compact) {
+    const head = compact
+      ? `<tr><th>Item</th><th>UOM</th><th class="r">Ordered</th><th class="r">Received</th><th class="r">Pending</th></tr>`
+      : `<tr><th>Item code</th><th>Item</th><th>Department</th><th>UOM</th><th class="r">Rate</th><th class="r">Ordered</th><th class="r">Received</th><th class="r">Cancelled</th><th class="r">Pending</th><th>Delivery</th><th class="r">Net amount</th></tr>`;
+    const body = p.lines.map((l) => compact
+      ? `<tr><td class="trunc" title="${esc(l.item)}">${esc(l.item)}</td><td>${esc(l.uom)}</td><td class="r num">${int(l.orderQty)}</td><td class="r num">${int(l.recvQty)}</td><td class="r num">${l.pendingQty > 0 ? `<b>${int(l.pendingQty)}</b>` : "0"}</td></tr>`
+      : `<tr><td class="mono">${esc(l.itemCode)}</td><td>${esc(l.item)}</td><td>${esc(l.dept)}</td><td>${esc(l.uom)}</td><td class="r num">${l.rate == null ? "—" : int(l.rate)}</td><td class="r num">${int(l.orderQty)}</td><td class="r num">${int(l.recvQty)}</td><td class="r num">${int(l.cancelQty)}</td><td class="r num">${l.pendingQty > 0 ? `<b>${int(l.pendingQty)}</b>` : "0"}</td><td class="num">${fmtDate(l.deliveryDate)}</td><td class="r num">${rupee(l.net)}</td></tr>`).join("");
+    const note = compact ? "" : `<div class="muted small" style="margin-bottom:6px">${esc(p.remarks || "No PO remarks")} · ordered by ${esc(personShort(p.createdBy) || "—")} · valid till ${fmtDate(p.validTill, true)}</div>`;
+    return `${note}<div class="table-wrap ${compact ? "lines-mini" : ""}"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
   }
 
   // ---------- render: tracker ----------
   function renderTracker() {
-    const tracked = state.watch.map((po) => state.pos[po]).filter(Boolean);
+    const { allByPo } = data();
+    const tracked = state.watch.map((po) => allByPo.get(po)).filter(Boolean);
     const k = kpis(tracked);
     $("#trackKpis").innerHTML = [
-      ["Tracking", int(state.watch.length), `${state.watch.length - tracked.length} not in reports yet`, ""],
-      ["Open value", money(k.openValue, true), `${k.open} open POs`, ""],
-      ["Overdue", int(k.late), "past due date", k.late ? "alert" : "good"],
-      ["Fill rate", k.fill == null ? "—" : k.fill + "%", "received ÷ ordered", ""],
-    ].map(([l, v, s, c]) => `<div class="kpi ${c}"><span class="label">${l}</span><span class="value">${v}</span><span class="sub">${s}</span></div>`).join("");
-
-    const stages = ["Open", "Approved", "Shipped", "Delivered"];
+      ["Tracking", int(state.watch.length), `${state.watch.length - tracked.length} not in the register yet`],
+      ["Pending value", money(k.pend), `${k.open} open POs`, "warn"],
+      ["Overdue", int(k.late), `${money(k.lateV)} past delivery date`, k.late ? "alert" : "good"],
+      ["Received", k.recvPct + "%", "by value"],
+    ].map(tile).join("");
+    const today = asOf();
     $("#trackGrid").innerHTML = state.watch.length ? state.watch.map((po) => {
-      const p = state.pos[po];
-      if (!p) return `<article class="track missing"><div class="track-top"><span class="track-po">${esc(po)}</span><button class="btn ghost" data-unwatch="${esc(po)}" aria-label="Stop tracking ${esc(po)}">Remove</button></div><p class="muted" style="margin:0">Not found in any email report or Excel upload yet. It will fill in automatically when a report mentions this PO.</p></article>`;
-      const idx = p.status === "Delayed" ? (p.recvQty ? 2 : 1) : Math.max(0, stages.indexOf(p.status));
-      const bad = p.status === "Delayed" || p.status === "Cancelled";
-      let dueChip = "";
-      if (isOpen(p) && p.dueDate) { const d = daysBetween(iso(today), p.dueDate); dueChip = d < 0 ? `<span class="chip crit">${-d} d overdue</span>` : `<span class="chip ${d <= 3 ? "warn" : ""}">due in ${d} d</span>`; }
-      if (p.status === "Delivered" && p.deliveredDate && p.dueDate) dueChip = p.deliveredDate <= p.dueDate ? '<span class="chip good">on time</span>' : `<span class="chip warn">${daysBetween(p.dueDate, p.deliveredDate)} d late</span>`;
-      const fill = p.qty ? Math.min(100, Math.round(((p.recvQty || 0) / p.qty) * 100)) : 0;
+      const p = allByPo.get(po);
+      const hist = (state.history[po] || []).slice(-4).reverse();
+      const histHtml = hist.length ? `<div class="history">${hist.map((h) => `<span>${fmtDate(h.at)} · ${esc(h.text)}</span>`).join("")}</div>` : "";
+      if (!p) return `<article class="track missing"><div class="track-top"><span class="track-po">${esc(po)}</span><button class="btn ghost" data-unwatch="${esc(po)}" aria-label="Stop tracking ${esc(po)}">Remove</button></div><p class="muted" style="margin:0">Not in the current register. It fills in when an upload contains this PO number.</p>${histHtml}</article>`;
+      let due = "";
+      if (p.open && p.delivery) { const d = daysBetween(today, p.delivery); due = d < 0 ? `<span class="chip crit">${-d} d overdue</span>` : `<span class="chip ${d <= 3 ? "warn" : ""}">${d === 0 ? "due today" : "due in " + d + " d"}</span>`; }
+      const valid = p.expired ? `<span class="chip crit">validity expired</span>` : p.expiring ? `<span class="chip warn">validity ends ${fmtDate(p.validTill)}</span>` : "";
+      const base = p.value || 1;
       return `<article class="track">
-        <div class="track-top"><div><div class="track-po">${esc(p.po)}</div><div class="muted" style="font-size:.82rem">${esc(p.vendor)} · ${esc(p.item)}</div></div><button class="btn ghost" data-unwatch="${esc(po)}" aria-label="Stop tracking ${esc(po)}">Remove</button></div>
-        <div class="row">${pill(p.status)}${dueChip}</div>
-        <div class="steps ${bad ? "bad" : ""}">${stages.map((s, i) => `<span class="step ${p.status !== "Cancelled" && i <= idx ? "done" : ""} ${i === 3 ? "final" : ""}">${s}</span>`).join("")}</div>
-        <dl class="kv num"><dt>Amount</dt><dd>${money(p.amount)}</dd><dt>Ordered / received</dt><dd>${int(p.qty)} / ${int(p.recvQty)} (${fill}%)</dd><dt>Order date</dt><dd>${fmtDate(p.orderDate)}</dd><dt>Due date</dt><dd>${fmtDate(p.dueDate)}</dd><dt>Source</dt><dd>${esc(p.source)}</dd></dl>
-        <div class="history">${p.history.slice(-3).reverse().map((h) => `<span>${fmtDate(h.at)} · ${esc(h.status)} <span class="muted">via ${esc(h.source)}</span></span>`).join("")}</div>
+        <div class="track-top"><div style="min-width:0"><div class="track-po">${esc(p.po)}</div><div class="muted small">${esc(p.party)} · ${esc(siteShort(p.site))}</div></div><button class="btn ghost" data-unwatch="${esc(po)}" aria-label="Stop tracking ${esc(po)}">Remove</button></div>
+        <div class="row">${pill(p.status)}${due}${valid}</div>
+        <div><div class="stackbar thin"><span class="c-recv" style="width:${(p.recvV / base) * 100}%"></span><span class="c-cancel" style="width:${(p.cancelV / base) * 100}%"></span><span class="c-pend" style="width:${(p.pendV / base) * 100}%"></span></div>
+          <div class="legend small" style="margin-top:6px"><span><i class="c-recv"></i>Received ${money(p.recvV)}</span><span><i class="c-cancel"></i>Cancelled ${money(p.cancelV)}</span><span><i class="c-pend"></i>Pending ${money(p.pendV)}</span></div></div>
+        <dl class="kv num"><dt>PO value</dt><dd>${rupee(p.value)}</dd><dt>PO date</dt><dd>${fmtDate(p.created, true)}</dd><dt>Delivery date</dt><dd>${fmtDate(p.delivery, true)}</dd><dt>Valid till</dt><dd>${fmtDate(p.validTill, true)}</dd><dt>Ordered by</dt><dd>${esc(personShort(p.createdBy) || "—")}</dd><dt>Remarks</dt><dd>${esc(p.remarks || "—")}</dd></dl>
+        ${linesTable(p, true)}
+        ${histHtml}
       </article>`;
     }).join("") : `<div class="empty panel">Add a PO number above to start tracking it.</div>`;
   }
 
   // ---------- render: upload ----------
-  let pending = null; // { name, wb, sheet, rows, map }
+  let pending = null;
   function renderUpload() {
-    $("#expectedCols").innerHTML = FIELDS.map((f) => `<span class="chip"><b>${f.label}</b>${f.key === "po" ? " · required" : ""}</span>`).join("");
-    $("#importLog").innerHTML = state.imports.length ? state.imports.slice().sort((a, b) => b.at.localeCompare(a.at)).map((i) => `<div class="list-item"><div style="min-width:0"><b>${esc(i.name)}</b><div class="muted" style="font-size:.8rem">${esc(i.at)}</div></div><div class="row"><span class="chip">${esc(i.source)}</span><span class="chip good">${i.added} new</span><span class="chip">${i.updated} updated</span></div></div>`).join("") : `<div class="empty">No imports yet</div>`;
+    $("#expectedCols").innerHTML = COLS.map((c) => `<span class="chip"><b>${c.label}</b>${c.req ? " · required" : ""}</span>`).join("");
+    $("#importLog").innerHTML = state.imports.length ? state.imports.slice().reverse().map((i) => `<div class="list-item"><div><b>${esc(i.name)}</b><div class="muted small">Uploaded ${esc(i.at)} · report date ${fmtDate(i.reportDate, true)}</div></div><div class="row"><span class="chip">${int(i.pos)} POs</span><span class="chip">${int(i.lines)} lines</span><span class="chip">${money(i.value)}</span></div></div>`).join("") : `<div class="empty">No uploads yet. The dashboard is showing sample data.</div>`;
     const pp = $("#previewPanel");
     if (!pending) { pp.hidden = true; return; }
     pp.hidden = false;
-    $("#previewTitle").textContent = `Preview · ${pending.name}`;
-    $("#sheetSel").innerHTML = pending.wb.SheetNames.map((n) => `<option ${n === pending.sheet ? "selected" : ""}>${esc(n)}</option>`).join("");
-    $("#sheetSel").hidden = pending.wb.SheetNames.length < 2;
-    const sheet = pending.wb.Sheets[pending.sheet];
-    const raw = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: true });
-    const headers = raw.length ? Object.keys(raw[0]) : [];
-    const map = mapHeaders(headers);
-    const pos = rowsToPos(raw, map);
-    pending.pos = pos;
-    $("#mapChips").innerHTML = FIELDS.map((f) => map[f.key] !== undefined ? `<span class="chip good">${f.label} ← <b>${esc(map[f.key])}</b></span>` : `<span class="chip ${f.key === "po" ? "crit" : ""}">${f.label} · not found</span>`).join("") + `<span class="chip">${pos.length} of ${raw.length} rows have a PO number</span>`;
-    $("#doImport").disabled = !pos.length;
-    $("#doImport").textContent = pos.length ? `Import ${pos.length} POs` : "Import";
-    $("#pvHead").innerHTML = `<tr><th>PO number</th><th>Vendor</th><th>Item</th><th class="r">Qty</th><th class="r">Received</th><th class="r">Amount</th><th>Order</th><th>Due</th><th>Status</th><th>Result</th></tr>`;
-    $("#pvBody").innerHTML = pos.slice(0, 12).map((r) => `<tr><td class="mono">${esc(r.po)}</td><td>${esc(r.vendor)}</td><td>${esc(r.item)}</td><td class="r num">${r.qty ?? "—"}</td><td class="r num">${r.recvQty ?? "—"}</td><td class="r num">${r.amount == null ? "—" : money(r.amount)}</td><td>${fmtDate(r.orderDate)}</td><td>${fmtDate(r.dueDate)}</td><td>${r.status ? pill(r.status) : "—"}</td><td>${state.pos[r.po] ? '<span class="chip">update</span>' : '<span class="chip good">new</span>'}</td></tr>`).join("") + (pos.length > 12 ? `<tr><td colspan="10" class="muted">…and ${pos.length - 12} more rows</td></tr>` : "") || `<tr><td colspan="10" class="empty">No rows with a PO number found. Check that the sheet has a "PO Number" column.</td></tr>`;
+    const r = pending.parsed;
+    const pos = aggregate(r.lines);
+    const k = kpis(pos);
+    $("#previewTitle").textContent = pending.name;
+    $("#previewSub").textContent = `${r.company ? r.company + " · " : ""}sheet "${r.sheet}" · report date ${fmtDate(r.reportDate, true) || "not found"}`;
+    $("#previewKpis").innerHTML = [["POs", int(k.count), `${int(k.lines)} item lines`], ["PO value", money(k.value), "net amount"], ["Open POs", int(k.open), `${money(k.pend)} pending`], ["Sites", int(new Set(r.lines.map((l) => l.site)).size), `${int(new Set(r.lines.map((l) => l.party)).size)} suppliers`]].map(tile).join("");
+    $("#mapChips").innerHTML = COLS.map((c) => r.map[c.key] !== undefined ? `<span class="chip good">${c.label} ← <b>${esc(r.headers[r.map[c.key]])}</b></span>` : `<span class="chip ${c.req ? "crit" : ""}">${c.label} · not found</span>`).join("");
+    $("#doImport").disabled = !r.lines.length;
+    $("#pvHead").innerHTML = `<tr><th>PO number</th><th>Supplier</th><th>Item</th><th>UOM</th><th class="r">Ordered</th><th class="r">Received</th><th class="r">Pending</th><th class="r">Net amount</th><th>Delivery</th><th>Status</th></tr>`;
+    $("#pvBody").innerHTML = r.lines.slice(0, 15).map((l) => `<tr><td class="mono">${esc(l.po)}</td><td>${esc(l.party)}</td><td>${esc(l.item)}</td><td>${esc(l.uom)}</td><td class="r num">${int(l.orderQty)}</td><td class="r num">${int(l.recvQty)}</td><td class="r num">${int(l.pendingQty)}</td><td class="r num">${rupee(l.net)}</td><td>${fmtDate(l.deliveryDate)}</td><td>${pill(l.status)}</td></tr>`).join("") + (r.lines.length > 15 ? `<tr><td colspan="10" class="muted">…and ${int(r.lines.length - 15)} more lines</td></tr>` : "");
   }
-
   function readFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true });
-        pending = { name: file.name, wb, sheet: wb.SheetNames[0] };
+        const parsed = parseWorkbook(wb);
+        if (!parsed || !parsed.lines.length) { toast("No \"PO Number\" column found in this file. Upload the Purchase Order Report export."); return; }
+        pending = { name: file.name, parsed };
         renderUpload();
       } catch (err) { toast("Could not read this file. Save it as .xlsx or .csv and try again."); }
     };
     reader.readAsArrayBuffer(file);
   }
+  function applyImport() {
+    const r = pending.parsed;
+    const before = data().allByPo;
+    const newAll = new Map(aggregate(r.lines).map((p) => [p.po, p]));
+    const reportDate = r.reportDate || iso(realToday);
+    for (const po of state.watch) { // log changes on tracked POs
+      const a = before.get(po), b = newAll.get(po);
+      const log = (text) => (state.history[po] ||= []).push({ at: reportDate, text });
+      if (!a && b) log(`appeared in register · ${STATUS_LABEL[b.status]}`);
+      else if (a && b && (a.status !== b.status || Math.round(a.pendV) !== Math.round(b.pendV))) log(`${STATUS_LABEL[a.status]} → ${STATUS_LABEL[b.status]} · pending ${money(a.pendV)} → ${money(b.pendV)}`);
+    }
+    const k = kpis([...newAll.values()]);
+    if (state.meta.sample && state.sampleWatch) { state.watch = state.watch.filter((po) => !state.sampleWatch.includes(po)); delete state.sampleWatch; }
+    state.lines = r.lines;
+    state.meta = { sample: false, fileName: pending.name, reportDate, company: r.company, uploadedAt: new Date().toLocaleString(LOCALE, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
+    state.imports.push({ at: state.meta.uploadedAt, name: pending.name, reportDate, pos: k.count, lines: k.lines, value: k.value });
+    state.imports = state.imports.slice(-20);
+    pending = null;
+    Object.keys(filt).forEach((x) => (filt[x] = ""));
+    const ok = save();
+    fillFilters(); renderAll();
+    toast(ok ? `Register replaced: ${int(k.count)} POs, ${int(k.lines)} lines` : "Register loaded. It is too large to keep in this browser, so upload again after a reload.");
+  }
+
+  // ---------- filters ----------
+  function fillFilters() {
+    const opts = (el, label, vals, fmt = (v) => v) => {
+      $(el).innerHTML = `<option value="">${label}</option>` + [...new Set(vals)].filter(Boolean).sort((a, b) => fmt(a).localeCompare(fmt(b))).map((v) => `<option value="${esc(v)}">${esc(fmt(v))}</option>`).join("");
+    };
+    opts("#fSite", "All sites", state.lines.map((l) => l.site), siteShort);
+    opts("#fDept", "All departments", state.lines.map((l) => l.dept));
+    opts("#fParty", "All suppliers", state.lines.map((l) => l.party));
+    opts("#fBy", "Ordered by: everyone", state.lines.map((l) => l.createdBy), personShort);
+    $("#fSite").value = filt.site; $("#fDept").value = filt.dept; $("#fParty").value = filt.party; $("#fBy").value = filt.by;
+    $("#poList").innerHTML = [...new Set(state.lines.map((l) => l.po))].map((p) => `<option value="${esc(p)}"></option>`).join("");
+  }
 
   // ---------- tabs ----------
-  const TABS = ["overview", "email", "tracker", "upload"];
+  const TABS = ["overview", "register", "tracker", "upload"];
+  let current = "overview";
   function show(tab) {
-    if (!TABS.includes(tab)) tab = "overview";
-    document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== tab));
-    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === tab));
-    try { localStorage.setItem(STORE_KEY + ".tab", tab); } catch (e) {}
+    current = TABS.includes(tab) ? tab : "overview";
+    document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== current));
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === current));
+    $("#filters").hidden = !(current === "overview" || current === "register");
+    try { localStorage.setItem(STORE_KEY + ".tab", current); } catch (e) {}
     renderAll();
   }
   function renderAll() {
-    const newMail = state.emails.filter((m) => !m.imported).length;
-    $("#cnt-email").textContent = newMail || "";
-    $("#cnt-email").className = "count" + (newMail ? " hot" : "");
-    $("#cnt-email").hidden = !newMail;
     $("#cnt-track").textContent = state.watch.length;
-    $("#syncInfo").textContent = `${Object.keys(state.pos).length} POs · as of ${today.toLocaleDateString(LOCALE, { day: "2-digit", month: "short", year: "numeric" })}`;
-    const cur = document.querySelector(".tab[aria-selected='true']")?.dataset.tab;
-    if (cur === "overview") renderOverview();
-    if (cur === "email") renderEmail();
-    if (cur === "tracker") renderTracker();
-    if (cur === "upload") renderUpload();
+    $("#sampleBanner").hidden = !state.meta.sample || current === "upload";
+    const n = new Set(state.lines.map((l) => l.po)).size;
+    $("#syncInfo").textContent = `${int(n)} POs · report ${fmtDate(asOf(), true)}${state.meta.sample ? " · sample data" : ""}`;
+    if (current === "overview") renderOverview();
+    if (current === "register") renderRegister();
+    if (current === "tracker") renderTracker();
+    if (current === "upload") renderUpload();
   }
 
   // ---------- events ----------
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("button"); if (!t) return;
+    const t = e.target.closest("button, tr[data-expand]"); if (!t) return;
     if (t.dataset.tab) { show(t.dataset.tab); return; }
-    if (t.dataset.watch) {
+    if (t.dataset.watch !== undefined && t.dataset.watch) {
+      e.stopPropagation();
       const po = t.dataset.watch;
       state.watch = state.watch.includes(po) ? state.watch.filter((x) => x !== po) : [...state.watch, po];
       save(); renderAll(); toast(state.watch.includes(po) ? `Tracking ${po}` : `Stopped tracking ${po}`); return;
     }
     if (t.dataset.unwatch) { state.watch = state.watch.filter((x) => x !== t.dataset.unwatch); save(); renderAll(); return; }
-    if (t.dataset.mail) { selectedMail = t.dataset.mail; renderEmail(); return; }
-    if (t.dataset.importMail) {
-      const m = state.emails.find((x) => x.id === t.dataset.importMail);
-      const r = upsert(parseTextReport(m.body).rows, "Email");
-      m.imported = true;
-      state.imports.push({ at: iso(today) + " " + new Date().toTimeString().slice(0, 5), source: "Email", name: m.subject, ...r });
-      save(); renderAll(); toast(`Imported: ${r.added} new, ${r.updated} updated`); return;
-    }
-  });
-
-  $("#checkInbox").addEventListener("click", () => {
-    if (state.queued) { state.emails.unshift(state.queued); selectedMail = state.queued.id; state.queued = null; save(); renderAll(); toast("1 new report email"); }
-    else toast(`Inbox checked at ${nowStamp()}. No new report emails.`);
-  });
-
-  $("#pasteParse").addEventListener("click", () => {
-    const rows = parseTextReport($("#pasteBox").value).rows;
-    if (!rows.length) { $("#pasteMsg").textContent = "No PO rows found. Include a header row with a PO Number column."; return; }
-    const r = upsert(rows, "Email");
-    state.imports.push({ at: iso(today) + " " + new Date().toTimeString().slice(0, 5), source: "Email", name: "Pasted email report", ...r });
-    save(); $("#pasteBox").value = ""; $("#pasteMsg").textContent = `Imported: ${r.added} new, ${r.updated} updated`; renderAll();
+    if (t.dataset.expand) { const po = t.dataset.expand; expanded.has(po) ? expanded.delete(po) : expanded.add(po); renderRegister(); return; }
+    if (t.hasAttribute("data-goto-overdue")) { $("#fStatus").value = "overdue"; $("#fSort").value = "pending"; show("register"); return; }
   });
 
   $("#trackForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    const nums = $("#trackInput").value.split(/[\s,;]+/).map(normPo).filter(Boolean);
-    const fresh = nums.filter((n) => !state.watch.includes(n));
-    state.watch.push(...fresh); save();
-    $("#trackInput").value = "";
-    renderAll();
-    if (nums.length) toast(fresh.length ? `Added ${fresh.length} PO${fresh.length > 1 ? "s" : ""}` : "Already tracking these POs");
+    const raw = $("#trackInput").value.split(/[,;\n]+|\s{2,}/).map((s) => s.trim()).filter(Boolean);
+    const all = [...data().allByPo.keys()];
+    const added = [], ambiguous = [];
+    for (const q of raw) {
+      const n = normPo(q);
+      let hits = all.filter((po) => normPo(po) === n);
+      if (!hits.length && /\d/.test(q)) {
+        const serial = String(+(q.match(/\d{3,}/g) || [""]).sort((a, b) => b.length - a.length)[0] || "");
+        const letters = (q.toUpperCase().match(/[A-Z]{2,}/g) || []).filter((w) => w !== "PO");
+        hits = all.filter((po) => serialOf(po) === serial && letters.every((w) => po.toUpperCase().includes(w)));
+      }
+      if (hits.length > 1) ambiguous.push(q);
+      (hits.length ? hits : [n]).forEach((po) => { if (!state.watch.includes(po)) { state.watch.push(po); added.push(po); } });
+    }
+    save(); $("#trackInput").value = ""; renderAll();
+    if (raw.length) toast(added.length ? `Added ${added.length} PO${added.length > 1 ? "s" : ""}${ambiguous.length ? ` (${ambiguous.join(", ")} matched more than one PO)` : ""}` : "Already tracking these POs");
   });
 
-  ["#q", "#fStatus", "#fSource"].forEach((s) => $(s).addEventListener("input", renderTable));
-  $("#fStatus").insertAdjacentHTML("beforeend", STATUSES.map((s) => `<option>${s}</option>`).join(""));
+  const onFilter = () => { filt.site = $("#fSite").value; filt.dept = $("#fDept").value; filt.party = $("#fParty").value; filt.by = $("#fBy").value; regLimit = 150; renderAll(); };
+  ["#fSite", "#fDept", "#fParty", "#fBy"].forEach((s) => $(s).addEventListener("change", onFilter));
+  $("#fClear").addEventListener("click", () => { Object.keys(filt).forEach((x) => (filt[x] = "")); fillFilters(); renderAll(); });
+  ["#q", "#fStatus", "#fSort"].forEach((s) => $(s).addEventListener("input", () => { regLimit = 150; renderRegister(); }));
+  $("#regMore").addEventListener("click", () => { regLimit += 300; renderRegister(); });
 
   const drop = $("#drop");
   ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
   drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) readFile(f); });
   $("#fileInput").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) readFile(f); e.target.value = ""; });
-  $("#sheetSel").addEventListener("change", (e) => { pending.sheet = e.target.value; renderUpload(); });
-  $("#doImport").addEventListener("click", () => {
-    if (!pending?.pos?.length) return;
-    const r = upsert(pending.pos, "Excel");
-    state.imports.push({ at: iso(today) + " " + new Date().toTimeString().slice(0, 5), source: "Excel", name: pending.name, ...r });
-    save(); pending = null; renderAll(); toast(`Imported: ${r.added} new, ${r.updated} updated`);
-  });
-  $("#copyHeader").addEventListener("click", () => {
-    const text = FIELDS.map((f) => f.label).join("\t");
-    navigator.clipboard?.writeText(text).then(() => toast("Header row copied. Paste it into row 1 of your sheet."), () => toast(text));
+  $("#doImport").addEventListener("click", () => pending && applyImport());
+  $("#cancelImport").addEventListener("click", () => { pending = null; renderUpload(); });
+  let resetArmed = false;
+  $("#resetBtn").addEventListener("click", (e) => {
+    if (!resetArmed) { resetArmed = true; e.target.textContent = "Click again to clear all data"; e.target.classList.add("danger"); setTimeout(() => { resetArmed = false; e.target.textContent = "Clear data and show sample"; e.target.classList.remove("danger"); }, 4000); return; }
+    try { localStorage.removeItem(STORE_KEY); } catch (err) {}
+    state = load(); resetArmed = false; e.target.textContent = "Clear data and show sample"; e.target.classList.remove("danger");
+    fillFilters(); renderAll(); toast("Cleared. Showing sample data.");
   });
 
   // ---------- boot ----------
   state = load();
+  state.history ||= {}; state.watch ||= []; state.imports ||= [];
+  if (state.meta.sample && !state.watch.length) {
+    const ps = aggregate(state.lines);
+    state.watch = [ps.find((p) => p.lateDays > 0), ps.find((p) => p.status === "Partial" && !p.lateDays), ps.find((p) => p.status === "New" && !p.lateDays)].filter(Boolean).map((p) => p.po);
+    state.sampleWatch = [...state.watch];
+  }
+  fillFilters();
   let start = "overview";
   try { start = localStorage.getItem(STORE_KEY + ".tab") || start; } catch (e) {}
   if (TABS.includes(location.hash.slice(1))) start = location.hash.slice(1);
   show(start);
-  window.PODesk = { reset() { try { localStorage.removeItem(STORE_KEY); } catch (e) {} state = seed(); renderAll(); } };
 })();
 </script>
 </body>

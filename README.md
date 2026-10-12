@@ -1,26 +1,32 @@
 # PO Tracking Desk (prototype)
 
-A single-page purchase-order dashboard. Open `index.html` in a browser; no build step.
+A single-page purchase-order dashboard built around the ERP **Purchase_Order_Report_New** Excel export. Open `index.html` in a browser; there is no build step.
 
 ## Tabs
 
 | Tab | What it does |
 | --- | --- |
-| **Overview** | KPIs (total POs, open PO value, on-time delivery %, overdue POs, fill rate, avg lead time), status mix, open value by vendor, overdue and due-this-week lists, and a searchable table of all POs. |
-| **Email reports** | Inbox of PO report emails. The PO table in each email body is parsed and imported (new POs are added, existing ones updated). "Check inbox" simulates a new email arriving. You can also paste an email body. |
-| **My PO tracker** | Type one or more PO numbers to watch. Each card shows a stage tracker (Open → Approved → Shipped → Delivered), due/overdue state, fill %, and status history. POs that aren't in any report yet wait until a report mentions them. |
-| **Upload Excel** | Drag in an `.xlsx`, `.xls` or `.csv`. Column names are matched loosely (e.g. "PO No.", "Supplier", "GRN Qty", "Delivery Date"). Preview, then import. Only the PO number column is required. |
+| **Overview** | KPIs: total POs, PO value, open POs, pending value, overdue POs, received % (by value), cancelled value, POs whose validity is ending. Also: status by count and value, pending value by delay, top suppliers and departments by pending value, overdue and due-in-7-days lists, **department-wise** table (POs, lines, order qty per UOM, net amount, received, pending, overdue), **orders placed by** table, and a site summary. |
+| **PO register** | Every PO with search, status filter (New / Partial / Received-cancelled / Overdue) and sorting. Click a row to see its item lines. |
+| **My PO tracker** | Type full PO numbers or just the serial (`1312`, `HSB 497`). Each card shows status, delivery and validity alerts, received / cancelled / pending value, item lines, and change history across uploads. |
+| **Upload Excel** | Drop the export as it comes from the ERP. Title rows and the totals row are skipped. Each upload replaces the register (the export is a full snapshot). |
 
-Try `samples/sample_po_upload.xlsx` on the Upload tab.
+Filters for **site, department, supplier and ordered by** (the "Created By" column) apply to Overview and PO register.
+
+## How the numbers are worked out
+
+- A PO is **open** when its status is New or Partial Received and some quantity is still pending.
+- **Pending / received / cancelled value** = line Net Amount × (that qty ÷ Order Qty).
+- **Overdue** = open PO whose earliest pending line's Delivery Date is before the report's Print Date.
+- Order qty is summed per UOM, since PCS, MTR, KG etc. can't be added together.
 
 ## Prototype notes
 
-- Data is sample data and is saved in the browser's localStorage. Run `PODesk.reset()` in the browser console to restore the sample data.
-- Currency/locale are set by `CURRENCY` and `LOCALE` at the top of the script.
-- Excel parsing uses SheetJS loaded from cdnjs.
+- Data stays in the browser (localStorage). Nothing is uploaded to a server.
+- Without an upload, the dashboard shows fictional sample data.
 
 ## Next steps for production
 
-1. **Email fetch**: a scheduled backend job (Gmail API / Microsoft Graph / IMAP) reads the PO report mailbox, parses the body table or Excel attachment with the same column mapping, and writes to a database.
-2. **Database + API** (e.g. Postgres/Supabase) replacing localStorage, so all users share the same PO data and watchlists are per user.
-3. **Auth** and per-user tracker lists, plus alerts (email/Slack) when a tracked PO goes overdue or changes status.
+1. Database + API so everyone sees the same register and each user keeps their own tracker list.
+2. Scheduled import of the ERP export (or a direct ERP connection) instead of manual uploads.
+3. Alerts when a tracked PO goes overdue or its validity is about to end.
