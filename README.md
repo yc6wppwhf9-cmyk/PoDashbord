@@ -23,7 +23,7 @@ Filters for **site, department, supplier and ordered by** (the "Created By" colu
 ## Prototype notes
 
 - Data stays in the browser (localStorage). Nothing is uploaded to a server.
-- Without an upload, the dashboard shows fictional sample data.
+- There is no built-in data: the dashboard is empty until you upload the export.
 
 ## Next steps for production
 

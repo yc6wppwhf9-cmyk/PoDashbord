@@ -177,6 +177,7 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
 .drop strong { font-family: var(--font-display); font-size: 1.05rem; }
 .map { display: flex; flex-wrap: wrap; gap: 6px; }
 .map .chip b { color: var(--fg); font-weight: 600; }
+.empty-state { display: grid; gap: 10px; justify-items: center; text-align: center; padding-block: 48px; }
 .empty { padding: 24px 12px; text-align: center; color: var(--muted); }
 
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgb(0 0 0 / 0.2); z-index: 20; }
@@ -211,8 +212,9 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
 </div>
 
 <main>
-  <div class="banner" id="sampleBanner" hidden>
-    <span><b>Showing sample data.</b> Upload your Purchase Order Report export to see your own POs.</span>
+  <div class="panel empty-state" id="emptyState" hidden>
+    <h2>No PO data yet</h2>
+    <p class="muted" style="margin:0;max-width:60ch">Upload the Purchase Order Report Excel export from the ERP. The overview, register and tracker fill in from that file.</p>
     <button class="btn primary" data-tab="upload">Upload Excel</button>
   </div>
 
@@ -341,7 +343,7 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
       <div class="map" id="expectedCols"></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Upload history</h2><button class="btn ghost" id="resetBtn">Clear data and show sample</button></div>
+      <div class="panel-head"><h2>Upload history</h2><button class="btn ghost" id="resetBtn">Clear all data</button></div>
       <div class="list" id="importLog"></div>
     </div>
   </section>
@@ -501,62 +503,10 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
     catch (e) { return false; }
   }
   function load() {
-    try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.lines) return s; } catch (e) {}
-    return { lines: sampleLines(), meta: { sample: true, fileName: "Sample data", reportDate: iso(realToday), uploadedAt: "" }, watch: [], imports: [], history: {} };
+    try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.lines && !s.meta?.sample) return s; } catch (e) {}
+    return { lines: [], meta: { fileName: "", reportDate: "", uploadedAt: "" }, watch: [], imports: [], history: {} };
   }
   const asOf = () => state.meta.reportDate || iso(realToday);
-
-  // ---------- sample data (same shape as the ERP export; fictional suppliers) ----------
-  function sampleLines() {
-    let seed = 7;
-    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
-    const pick = (a) => a[Math.floor(rnd() * a.length)];
-    const parties = ["Shakti Polymers", "Mehta Zipper Works", "Rainbow Labels", "Om Sai Packaging", "Krishna Foam Industries", "Unique Chain Works", "Sagar Textiles", "Gupta Hardware Fittings", "Classic Trims", "Nova Fabrics"];
-    const items = [
-      ["Hard Luggage", "ABS shell 24 inch", "PCS", 410], ["Label", "Woven label 40x20", "PCS", 1.8], ["Matty", "PVC matty 340 BLK", "MTR", 82], ["Chain", "Zipper chain #8 coil", "MTR", 6.5],
-      ["Ully", "Polyester ully 600D", "MTR", 54], ["Travelling Bag", "Trolley duffel 22 inch", "PCS", 690], ["Stationery", "Rivet tablet NKL", "PCS", 0.25], ["Runner", "Slider #8 auto lock", "PCS", 3.1],
-      ["Foam", "EPE foam 5mm", "MTR", 24], ["Corrugated Box packing", "Carton 35x25x21 5-ply", "PCS", 139], ["Sponge", "Sponge sheet 3mm", "MTR", 31], ["Tag", "Hang tag printed", "PCS", 1.2],
-    ];
-    const sites = ["Muzaffarpur", "Muzaffarpur", "Bhiwandi", "Muzaffarpur B7", "Nashik"];
-    const buyers = ["Priya Shah [11]", "Rahul Verma [23]", "Anita Rao [31]", "Vikram Singh [45]"];
-    const lines = [];
-    for (let i = 0; i < 72; i++) {
-      const age = Math.floor(70 - i * 0.95);
-      const created = addDays(realToday, -age);
-      const site = pick(sites);
-      const prefix = site === "Bhiwandi" ? "HSB" : site === "Nashik" ? "HSN" : "HSM";
-      const po = `PO/${prefix}/${String(1200 + i * 3).padStart(8, "0")}/26-27`;
-      const party = pick(parties), by = pick(buyers);
-      const lead = 5 + Math.floor(rnd() * 22);
-      const delivery = addDays(created, lead);
-      const nLines = 1 + Math.floor(rnd() * rnd() * 6);
-      const daysPastDue = daysBetween(iso(delivery), iso(realToday));
-      const remarks = pick(["Plan_October Order", "Monthly requisition plan", "Urgent top-up", "Lot 2 delivery", "Festive season plan"]);
-      for (let k = 0; k < nLines; k++) {
-        const [dept, item, uom, rate] = pick(items);
-        const qty = Math.round((50 + rnd() * 950) * (rate < 5 ? 40 : 1));
-        let recv = 0, cancel = 0;
-        const r = rnd();
-        if (daysPastDue > 20 && r < 0.75) { recv = qty; if (rnd() < 0.15) { recv = Math.round(qty * 0.8); cancel = qty - recv; } }
-        else if (daysPastDue > -3 && r < 0.55) recv = Math.round(qty * (0.2 + rnd() * 0.6));
-        else if (daysPastDue > 5 && r < 0.8) recv = qty;
-        const pending = qty - recv - cancel;
-        const gst = rate > 100 ? 0.18 : 0.05;
-        lines.push({ po, created: iso(created), orderDate: iso(created), validTill: iso(addDays(created, 60 + (i % 3) * 30)), deliveryDate: iso(delivery), remarks,
-          partyCode: String(2000 + parties.indexOf(party)), party, itemCode: "INV" + (19000 + items.findIndex((x) => x[1] === item)), dept, item, rate, uom,
-          orderQty: qty, recvQty: recv, cancelQty: cancel, pendingQty: pending, net: Math.round(qty * rate * (1 + gst) * 100) / 100,
-          site: "Sample Company - " + site, createdBy: by, status: pending > 0 ? (recv > 0 ? "Partial" : "New") : "Closed" });
-      }
-    }
-    // keep a PO's status consistent across its lines, like the ERP does
-    const byPo = {};
-    lines.forEach((l) => (byPo[l.po] = byPo[l.po] || []).push(l));
-    Object.values(byPo).forEach((ls) => {
-      const pend = ls.some((l) => l.pendingQty > 0), rec = ls.some((l) => l.recvQty > 0);
-      ls.forEach((l) => (l.status = pend ? (rec ? "Partial" : "New") : "Closed"));
-    });
-    return lines;
-  }
 
   // ---------- derived ----------
   const filt = { site: "", dept: "", party: "", by: "" };
@@ -778,7 +728,7 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
   let pending = null;
   function renderUpload() {
     $("#expectedCols").innerHTML = COLS.map((c) => `<span class="chip"><b>${c.label}</b>${c.req ? " · required" : ""}</span>`).join("");
-    $("#importLog").innerHTML = state.imports.length ? state.imports.slice().reverse().map((i) => `<div class="list-item"><div><b>${esc(i.name)}</b><div class="muted small">Uploaded ${esc(i.at)} · report date ${fmtDate(i.reportDate, true)}</div></div><div class="row"><span class="chip">${int(i.pos)} POs</span><span class="chip">${int(i.lines)} lines</span><span class="chip">${money(i.value)}</span></div></div>`).join("") : `<div class="empty">No uploads yet. The dashboard is showing sample data.</div>`;
+    $("#importLog").innerHTML = state.imports.length ? state.imports.slice().reverse().map((i) => `<div class="list-item"><div><b>${esc(i.name)}</b><div class="muted small">Uploaded ${esc(i.at)} · report date ${fmtDate(i.reportDate, true)}</div></div><div class="row"><span class="chip">${int(i.pos)} POs</span><span class="chip">${int(i.lines)} lines</span><span class="chip">${money(i.value)}</span></div></div>`).join("") : `<div class="empty">No uploads yet.</div>`;
     const pp = $("#previewPanel");
     if (!pending) { pp.hidden = true; return; }
     pp.hidden = false;
@@ -818,9 +768,8 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
       else if (a && b && (a.status !== b.status || Math.round(a.pendV) !== Math.round(b.pendV))) log(`${STATUS_LABEL[a.status]} → ${STATUS_LABEL[b.status]} · pending ${money(a.pendV)} → ${money(b.pendV)}`);
     }
     const k = kpis([...newAll.values()]);
-    if (state.meta.sample && state.sampleWatch) { state.watch = state.watch.filter((po) => !state.sampleWatch.includes(po)); delete state.sampleWatch; }
     state.lines = r.lines;
-    state.meta = { sample: false, fileName: pending.name, reportDate, company: r.company, uploadedAt: new Date().toLocaleString(LOCALE, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
+    state.meta = { fileName: pending.name, reportDate, company: r.company, uploadedAt: new Date().toLocaleString(LOCALE, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
     state.imports.push({ at: state.meta.uploadedAt, name: pending.name, reportDate, pos: k.count, lines: k.lines, value: k.value });
     state.imports = state.imports.slice(-20);
     pending = null;
@@ -856,9 +805,12 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
   }
   function renderAll() {
     $("#cnt-track").textContent = state.watch.length;
-    $("#sampleBanner").hidden = !state.meta.sample || current === "upload";
+    const noData = !state.lines.length && (current === "overview" || current === "register");
+    $("#emptyState").hidden = !noData;
+    document.querySelectorAll("[data-view]").forEach((sec) => (sec.hidden = sec.dataset.view !== current || noData));
+    $("#filters").hidden = noData || !(current === "overview" || current === "register");
     const n = new Set(state.lines.map((l) => l.po)).size;
-    $("#syncInfo").textContent = `${int(n)} POs · report ${fmtDate(asOf(), true)}${state.meta.sample ? " · sample data" : ""}`;
+    $("#syncInfo").textContent = n ? `${int(n)} POs · report ${fmtDate(asOf(), true)}` : "no data uploaded";
     if (current === "overview") renderOverview();
     if (current === "register") renderRegister();
     if (current === "tracker") renderTracker();
@@ -915,20 +867,15 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
   $("#cancelImport").addEventListener("click", () => { pending = null; renderUpload(); });
   let resetArmed = false;
   $("#resetBtn").addEventListener("click", (e) => {
-    if (!resetArmed) { resetArmed = true; e.target.textContent = "Click again to clear all data"; e.target.classList.add("danger"); setTimeout(() => { resetArmed = false; e.target.textContent = "Clear data and show sample"; e.target.classList.remove("danger"); }, 4000); return; }
+    if (!resetArmed) { resetArmed = true; e.target.textContent = "Click again to clear all data"; e.target.classList.add("danger"); setTimeout(() => { resetArmed = false; e.target.textContent = "Clear all data"; e.target.classList.remove("danger"); }, 4000); return; }
     try { localStorage.removeItem(STORE_KEY); } catch (err) {}
-    state = load(); resetArmed = false; e.target.textContent = "Clear data and show sample"; e.target.classList.remove("danger");
-    fillFilters(); renderAll(); toast("Cleared. Showing sample data.");
+    state = load(); resetArmed = false; e.target.textContent = "Clear all data"; e.target.classList.remove("danger");
+    fillFilters(); renderAll(); toast("All data cleared.");
   });
 
   // ---------- boot ----------
   state = load();
   state.history ||= {}; state.watch ||= []; state.imports ||= [];
-  if (state.meta.sample && !state.watch.length) {
-    const ps = aggregate(state.lines);
-    state.watch = [ps.find((p) => p.lateDays > 0), ps.find((p) => p.status === "Partial" && !p.lateDays), ps.find((p) => p.status === "New" && !p.lateDays)].filter(Boolean).map((p) => p.po);
-    state.sampleWatch = [...state.watch];
-  }
   fillFilters();
   let start = "overview";
   try { start = localStorage.getItem(STORE_KEY + ".tab") || start; } catch (e) {}
