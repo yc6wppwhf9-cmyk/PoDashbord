@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PO Tracking Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky top bar with tabs; each tab is one working surface. Summary (KPI strip) first, then detail. */
+:root {
+  --bg: #f2f4f8;
+  --surface: #ffffff;
+  --surface-2: #e8ecf3;
+  --line: #d5dbe6;
+  --fg: #131a29;
+  --muted: #5a6477;
+  --accent: #1f4fd1;
+  --accent-ink: #ffffff;
+  --accent-soft: #e1e8fb;
+  --good: #17844a;
+  --good-soft: #dcf1e5;
+  --warn: #a8690f;
+  --warn-soft: #fbeed7;
+  --crit: #c0352a;
+  --crit-soft: #fbe1de;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e121a; --surface: #161b26; --surface-2: #1e2432; --line: #2b3345;
+    --fg: #e6eaf2; --muted: #98a2b6; --accent: #7d9dff; --accent-ink: #0e121a; --accent-soft: #1d2848;
+    --good: #4cc283; --good-soft: #15301f; --warn: #e3a94a; --warn-soft: #33270f;
+    --crit: #f0776b; --crit-soft: #3a1a17; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e121a; --surface: #161b26; --surface-2: #1e2432; --line: #2b3345;
+  --fg: #e6eaf2; --muted: #98a2b6; --accent: #7d9dff; --accent-ink: #0e121a; --accent-soft: #1d2848;
+  --good: #4cc283; --good-soft: #15301f; --warn: #e3a94a; --warn-soft: #33270f;
+  --crit: #f0776b; --crit-soft: #3a1a17; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h2 { font-size: 1.05rem; font-weight: 700; }
+h3 { font-size: 0.95rem; font-weight: 600; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+
+/* Top bar */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar-inner { max-width: 1240px; margin: 0 auto; padding-inline: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding-block: 10px 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; }
+.brand h1 { font-size: 1.25rem; font-weight: 800; }
+.brand .tag { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); }
+.tabs { display: flex; gap: 2px; overflow-x: auto; margin-left: auto; }
+.tab { border: 0; background: none; padding: 10px 14px 12px; cursor: pointer; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tab .count { font-family: var(--font-mono); font-size: 0.7rem; background: var(--surface-2); padding: 0 6px; border-radius: 99px; }
+.tab .count.hot { background: var(--accent); color: var(--accent-ink); }
+
+main { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 20px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.grid-2 > * { min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Buttons & inputs */
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 12px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; background: none; color: var(--muted); }
+.btn.ghost:hover { color: var(--fg); background: var(--surface-2); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.input, select.input, textarea.input { border: 1px solid var(--line); background: var(--bg); padding: 7px 10px; border-radius: 8px; min-width: 0; }
+textarea.input { width: 100%; font-family: var(--font-mono); font-size: 0.8rem; resize: vertical; }
+
+/* KPI strip */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.kpi { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.kpi .value { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.kpi .sub { font-size: 0.78rem; color: var(--muted); }
+.kpi.alert .value { color: var(--crit); }
+.kpi.good .value { color: var(--good); }
+
+/* Pills */
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 600; padding: 1px 8px; border-radius: 99px; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.s-Approved, .pill.s-Shipped { background: var(--accent-soft); color: var(--accent); }
+.pill.s-Delivered { background: var(--good-soft); color: var(--good); }
+.pill.s-Delayed { background: var(--crit-soft); color: var(--crit); }
+.pill.s-Cancelled { text-decoration: line-through; }
+.chip { font-size: 0.72rem; padding: 1px 7px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.crit { border-color: var(--crit); color: var(--crit); }
+.chip.warn { border-color: var(--warn); color: var(--warn); }
+.chip.good { border-color: var(--good); color: var(--good); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--surface-2); font-weight: 600; position: sticky; top: 0; }
+td.r, th.r { text-align: right; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--bg); }
+.late td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
+
+/* Bars */
+.bars { display: grid; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: minmax(90px, 150px) 1fr auto; gap: 10px; align-items: center; font-size: 0.85rem; }
+.bar-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { height: 10px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 99px; }
+.stack { display: flex; height: 18px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+.stack span { height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 0.8rem; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.c-Open { background: var(--muted); } .c-Approved { background: color-mix(in srgb, var(--accent) 55%, var(--surface)); }
+.c-Shipped { background: var(--accent); } .c-Delivered { background: var(--good); }
+.c-Delayed { background: var(--crit); } .c-Cancelled { background: var(--line); }
+
+.list { display: grid; }
+.list-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.list-item:last-child { border-bottom: 0; }
+
+/* Email tab */
+.mail { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: 20px; align-items: start; }
+@media (max-width: 760px) { .mail { grid-template-columns: 1fr; } }
+.mail > * { min-width: 0; }
+.mail-list { display: grid; gap: 6px; }
+.mail-item { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: grid; gap: 2px; }
+.mail-item:hover { background: var(--bg); }
+.mail-item[aria-current="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.mail-item .subj { font-weight: 600; }
+.mail-item .meta { font-size: 0.76rem; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.mail-body { font-family: var(--font-mono); font-size: 0.76rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; max-height: 220px; overflow: auto; white-space: pre; }
+
+/* Tracker */
+.track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+.track { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.track.missing { border-style: dashed; }
+.track-top { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.track-po { font-family: var(--font-mono); font-weight: 500; font-size: 1rem; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.step { display: grid; gap: 4px; font-size: 0.7rem; color: var(--muted); }
+.step::before { content: ""; height: 4px; border-radius: 99px; background: var(--surface-2); }
+.step.done::before { background: var(--accent); }
+.step.done.final::before { background: var(--good); }
+.step.done { color: var(--fg); }
+.steps.bad .step.done::before { background: var(--crit); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 0.82rem; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; }
+.history { font-size: 0.76rem; color: var(--muted); display: grid; gap: 2px; border-top: 1px solid var(--line); padding-top: 8px; }
+
+/* Upload */
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 28px 16px; text-align: center; display: grid; gap: 8px; justify-items: center; background: var(--surface); cursor: pointer; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { font-family: var(--font-display); font-size: 1.05rem; }
+.map { display: flex; flex-wrap: wrap; gap: 6px; }
+.map .chip b { color: var(--fg); font-weight: 600; }
+.note { font-size: 0.82rem; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+.empty { padding: 24px 12px; text-align: center; color: var(--muted); }
+
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgb(0 0 0 / 0.2); }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise 0.2s ease-out; } }
+@keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>PO Tracking Desk</h1>
+      <span class="tag" id="syncInfo">prototype</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab" role="tab" data-tab="overview" id="tab-overview">Overview</button>
+      <button class="tab" role="tab" data-tab="email" id="tab-email">Email reports <span class="count" id="cnt-email"></span></button>
+      <button class="tab" role="tab" data-tab="tracker" id="tab-tracker">My PO tracker <span class="count" id="cnt-track"></span></button>
+      <button class="tab" role="tab" data-tab="upload" id="tab-upload">Upload Excel</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- OVERVIEW -->
+  <section data-view="overview" hidden>
+    <div style="display:grid;gap:20px">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head"><h2>PO status mix</h2><span class="label" id="mixTotal"></span></div>
+          <div class="stack" id="statusStack"></div>
+          <div class="legend" id="statusLegend"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Open value by vendor</h2><span class="label">Top 6</span></div>
+          <div class="bars" id="vendorBars"></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head"><h2>Overdue</h2><span class="chip crit" id="overdueCount"></span></div>
+          <div class="list" id="overdueList"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Due in the next 7 days</h2><span class="chip" id="dueCount"></span></div>
+          <div class="list" id="dueList"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>All purchase orders</h2>
+          <div class="row">
+            <input class="input" id="q" type="search" placeholder="Search PO, vendor, item" aria-label="Search">
+            <select class="input" id="fStatus" aria-label="Status filter"><option value="">All statuses</option></select>
+            <select class="input" id="fSource" aria-label="Source filter"><option value="">All sources</option><option>Email</option><option>Excel</option></select>
+          </div>
+        </div>
+        <div class="table-wrap" style="max-height:520px">
+          <table>
+            <thead><tr><th>PO number</th><th>Vendor</th><th>Item</th><th class="r">Qty</th><th class="r">Received</th><th class="r">Amount</th><th>Order date</th><th>Due date</th><th>Status</th><th>Source</th><th>Track</th></tr></thead>
+            <tbody id="poRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EMAIL -->
+  <section data-view="email" hidden>
+    <div style="display:grid;gap:20px">
+      <div class="note">Prototype: the inbox below holds sample report emails. In production a scheduled job reads the PO report mailbox (Gmail API, Microsoft Graph or IMAP), parses the table in the body or the attached Excel, and imports it the same way the Import button does here.</div>
+      <div class="mail">
+        <div class="panel">
+          <div class="panel-head"><h2>Report inbox</h2><button class="btn" id="checkInbox">Check inbox</button></div>
+          <div class="mail-list" id="mailList"></div>
+        </div>
+        <div class="panel" id="mailView"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Paste a report email</h2><span class="muted" style="font-size:.8rem">Table with a header row; columns split by | , ; or tab</span></div>
+        <textarea class="input" id="pasteBox" rows="6" placeholder="PO Number | Vendor | Item | Qty | Received | Amount | Order Date | Due Date | Status
+PO-4510301 | Apex Steel | MS plate 6mm | 200 | 0 | 184000 | 2026-10-01 | 2026-10-20 | Approved"></textarea>
+        <div class="row" style="margin-top:10px"><button class="btn primary" id="pasteParse">Parse and import</button><span class="muted" id="pasteMsg"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRACKER -->
+  <section data-view="tracker" hidden>
+    <div style="display:grid;gap:20px">
+      <div class="panel">
+        <div class="panel-head"><h2>Add PO numbers to track</h2></div>
+        <form class="row" id="trackForm">
+          <input class="input mono" id="trackInput" style="flex:1 1 260px" placeholder="e.g. PO-4510235, PO-4510240" aria-label="PO numbers">
+          <button class="btn primary" type="submit">Add to tracker</button>
+        </form>
+        <p class="muted" style="margin:8px 0 0;font-size:.82rem">Separate several numbers with commas or spaces. A PO that is not in any report yet stays on the list and fills in when a report mentions it.</p>
+      </div>
+      <div class="kpis" id="trackKpis"></div>
+      <div class="track-grid" id="trackGrid"></div>
+    </div>
+  </section>
+
+  <!-- UPLOAD -->
+  <section data-view="upload" hidden>
+    <div style="display:grid;gap:20px">
+      <label class="drop" id="drop" for="fileInput">
+        <strong>Drop an Excel or CSV file here</strong>
+        <span class="muted">or click to choose a file (.xlsx, .xls, .csv)</span>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+      </label>
+      <div class="panel">
+        <div class="panel-head"><h2>Expected columns</h2><button class="btn" id="copyHeader">Copy header row</button></div>
+        <p class="muted" style="margin:0 0 8px;font-size:.85rem">Only <b>PO Number</b> is required. Column names are matched loosely, so "PO No.", "Supplier" or "Delivery Date" also work. Rows with an existing PO number update that PO.</p>
+        <div class="map" id="expectedCols"></div>
+      </div>
+      <div class="panel" id="previewPanel" hidden>
+        <div class="panel-head">
+          <h2 id="previewTitle">Preview</h2>
+          <div class="row"><select class="input" id="sheetSel" aria-label="Sheet"></select><button class="btn primary" id="doImport">Import</button></div>
+        </div>
+        <div class="map" id="mapChips" style="margin-bottom:12px"></div>
+        <div class="table-wrap"><table><thead id="pvHead"></thead><tbody id="pvBody"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Import history</h2></div>
+        <div class="list" id="importLog"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(() => {
+  const CURRENCY = "INR";
+  const LOCALE = "en-IN";
+  const STORE_KEY = "podesk.v1";
+  const STATUSES = ["Open", "Approved", "Shipped", "Delivered", "Delayed", "Cancelled"];
+  const FIELDS = [
+    { key: "po", label: "PO Number", alias: ["po", "po number", "po no", "po num", "po#", "purchase order", "purchase order no", "po id", "order number", "order no"] },
+    { key: "vendor", label: "Vendor", alias: ["vendor", "supplier", "vendor name", "supplier name", "party"] },
+    { key: "item", label: "Item", alias: ["item", "description", "material", "product", "item description", "material description"] },
+    { key: "qty", label: "Qty", alias: ["qty", "quantity", "ordered qty", "order qty", "po qty"] },
+    { key: "recvQty", label: "Received", alias: ["received", "received qty", "grn qty", "delivered qty", "recv qty", "qty received"] },
+    { key: "amount", label: "Amount", alias: ["amount", "value", "po value", "total", "net value", "total value"] },
+    { key: "orderDate", label: "Order Date", alias: ["order date", "po date", "created", "created on", "date"] },
+    { key: "dueDate", label: "Due Date", alias: ["due date", "delivery date", "expected date", "eta", "need by", "required date"] },
+    { key: "deliveredDate", label: "Delivered Date", alias: ["delivered date", "received date", "grn date", "delivered on"] },
+    { key: "status", label: "Status", alias: ["status", "po status", "state", "stage"] },
+  ];
+
+  // ---------- helpers ----------
+  const $ = (s) => document.querySelector(s);
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const DAY = 86400000;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const iso = (d) => { const z = new Date(d); return `${z.getFullYear()}-${String(z.getMonth() + 1).padStart(2, "0")}-${String(z.getDate()).padStart(2, "0")}`; };
+  const addDays = (d, n) => new Date(new Date(d).getTime() + n * DAY);
+  const toDate = (s) => (s ? new Date(s + "T00:00:00") : null);
+  const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / DAY);
+  const fmtDate = (s) => (s ? toDate(s).toLocaleDateString(LOCALE, { day: "2-digit", month: "short" }) : "—");
+  const money = (n, compact) => new Intl.NumberFormat(LOCALE, { style: "currency", currency: CURRENCY, maximumFractionDigits: 0, notation: compact ? "compact" : "standard" }).format(n || 0);
+  const int = (n) => new Intl.NumberFormat(LOCALE).format(n || 0);
+  const normPo = (s) => String(s ?? "").trim().toUpperCase().replace(/\s+/g, "");
+  const normHeader = (h) => String(h ?? "").toLowerCase().replace(/[^a-z0-9#]+/g, " ").trim();
+  const nowStamp = () => new Date().toLocaleString(LOCALE, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2800);
+  }
+
+  function parseNum(v) {
+    if (v == null || v === "") return null;
+    if (typeof v === "number") return v;
+    const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
+    return isNaN(n) ? null : n;
+  }
+
+  function parseDateVal(v) {
+    if (v == null || v === "") return "";
+    if (v instanceof Date && !isNaN(v)) return iso(v);
+    if (typeof v === "number" && v > 20000 && v < 80000) return iso(new Date(Math.round((v - 25569) * DAY) + new Date().getTimezoneOffset() * 60000));
+    const s = String(v).trim();
+    let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) return iso(new Date(+m[1], +m[2] - 1, +m[3]));
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/); // dd-mm-yyyy
+    if (m) { const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return iso(new Date(y, +m[2] - 1, +m[1])); }
+    const d = new Date(s);
+    return isNaN(d) ? "" : iso(d);
+  }
+
+  function normStatus(s, qty, recv) {
+    const t = String(s ?? "").toLowerCase();
+    if (t.includes("cancel")) return "Cancelled";
+    if (/partial/.test(t)) return "Shipped";
+    if (/(deliver|received|closed|complete|grn)/.test(t)) return "Delivered";
+    if (/(delay|hold|late|overdue)/.test(t)) return "Delayed";
+    if (/(ship|transit|dispatch)/.test(t)) return "Shipped";
+    if (/(approv|confirm|accept|released)/.test(t)) return "Approved";
+    if (qty > 0 && recv >= qty) return "Delivered";
+    return t ? "Open" : "";
+  }
+
+  // map raw header names -> field keys
+  function mapHeaders(headers) {
+    const map = {};
+    headers.forEach((h) => {
+      const n = normHeader(h);
+      if (!n) return;
+      let best = null;
+      for (const f of FIELDS) {
+        if (map[f.key] !== undefined) continue;
+        if (f.alias.includes(n)) { best = f; break; }
+      }
+      if (!best) for (const f of FIELDS) {
+        if (map[f.key] !== undefined) continue;
+        if (f.alias.some((a) => a.length > 3 && n.includes(a))) { best = f; break; }
+      }
+      if (best) map[best.key] = h;
+    });
+    return map;
+  }
+
+  function rowsToPos(rows, headerMap) {
+    const out = [];
+    for (const r of rows) {
+      const get = (k) => (headerMap[k] !== undefined ? r[headerMap[k]] : undefined);
+      const po = normPo(get("po"));
+      if (!po) continue;
+      const qty = parseNum(get("qty"));
+      const recvQty = parseNum(get("recvQty"));
+      out.push({
+        po,
+        vendor: String(get("vendor") ?? "").trim(),
+        item: String(get("item") ?? "").trim(),
+        qty, recvQty,
+        amount: parseNum(get("amount")),
+        orderDate: parseDateVal(get("orderDate")),
+        dueDate: parseDateVal(get("dueDate")),
+        deliveredDate: parseDateVal(get("deliveredDate")),
+        status: normStatus(get("status"), qty || 0, recvQty || 0),
+      });
+    }
+    return out;
+  }
+
+  // Parse a plain-text report (email body). Finds the header row, splits on | tab ; or ,
+  function parseTextReport(text) {
+    const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const delimOf = (l) => ["|", "\t", ";", ","].sort((a, b) => l.split(b).length - l.split(a).length)[0];
+    const split = (l, d) => l.replace(/^\||\|$/g, "").split(d).map((c) => c.trim());
+    const poAlias = FIELDS[0].alias;
+    // header row = at least 3 columns, one of which is a PO-number column name
+    const hi = lines.findIndex((l) => { const c = split(l, delimOf(l)); return c.length >= 3 && c.some((x) => poAlias.includes(normHeader(x))); });
+    if (hi < 0) return { rows: [], map: {} };
+    const head = lines[hi];
+    const delim = delimOf(head);
+    const headers = split(head, delim);
+    const rows = [];
+    for (const l of lines.slice(hi + 1)) {
+      if (/^[|\-\s:+]+$/.test(l)) continue; // markdown separator
+      const cells = split(l, delim);
+      if (cells.length < 2) continue;
+      const o = {}; headers.forEach((h, i) => (o[h] = cells[i]));
+      rows.push(o);
+    }
+    const map = mapHeaders(headers);
+    return { rows: rowsToPos(rows, map), map, headers };
+  }
+
+  // ---------- state ----------
+  let state;
+  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+  function load() {
+    try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && s.pos) return s; } catch (e) {}
+    return seed();
+  }
+
+  function upsert(list, source) {
+    let added = 0, updated = 0;
+    const stamp = iso(today);
+    for (const n of list) {
+      const cur = state.pos[n.po];
+      if (!cur) {
+        state.pos[n.po] = { ...n, status: n.status || "Open", source, history: [{ at: stamp, source, status: n.status || "Open" }] };
+        added++;
+      } else {
+        const prevStatus = cur.status;
+        for (const k of Object.keys(n)) if (n[k] !== "" && n[k] != null) cur[k] = n[k];
+        cur.source = source;
+        if (n.status && n.status !== prevStatus) cur.history.push({ at: stamp, source, status: n.status });
+        updated++;
+      }
+    }
+    save();
+    return { added, updated };
+  }
+
+  // ---------- sample data (relative to today) ----------
+  function seed() {
+    const vendors = ["Apex Steel", "Nordic Packaging", "Shree Textiles", "BlueLine Logistics", "Kaveri Components", "Orion Plastics"];
+    const items = [["MS plate 6mm", 920], ["Corrugated box 5-ply", 38], ["Cotton fabric 60s", 210], ["Pallet wrap film", 145], ["Bearing 6205-ZZ", 165], ["HDPE granules", 118], ["Hex bolt M12", 14], ["Label roll 100x50", 260]];
+    const rows = [];
+    for (let i = 0; i < 26; i++) {
+      const order = addDays(today, -44 + Math.round(i * 1.6));
+      const lead = 12 + ((i * 7) % 15);
+      const due = addDays(order, lead);
+      const dtd = Math.round((due - today) / DAY);
+      const [item, price] = items[(i * 3) % items.length];
+      const qty = (((i * 37) % 9) + 1) * 50;
+      let status, recv = 0, delivered = "";
+      if (i % 11 === 5) status = "Cancelled";
+      else if (dtd < -2) {
+        if (i % 5 === 0) { status = "Delayed"; recv = Math.round(qty * 0.4); }
+        else { status = "Delivered"; recv = qty; delivered = iso(addDays(due, (i % 4) - 2)); }
+      } else if (dtd < 4) status = i % 4 === 1 ? "Delayed" : "Shipped";
+      else status = i % 2 ? "Approved" : "Open";
+      rows.push({ po: "PO-" + (4510231 + i), vendor: vendors[(i * 5) % vendors.length], item, qty, recvQty: recv, amount: qty * price, orderDate: iso(order), dueDate: iso(due), deliveredDate: delivered, status });
+    }
+    const toBody = (subset, intro) => {
+      const h = "PO Number | Vendor | Item | Qty | Received | Amount | Order Date | Due Date | Delivered Date | Status";
+      const lines = subset.map((r) => [r.po, r.vendor, r.item, r.qty, r.recvQty, r.amount, r.orderDate, r.dueDate, r.deliveredDate, r.status].join(" | "));
+      return `Hi team,\n\n${intro}\n\n${h}\n${lines.join("\n")}\n\nRegards,\nERP Reporting (auto-generated)`;
+    };
+    // newest email: updates + new POs, not yet imported
+    const fresh = rows.filter((r) => r.status === "Shipped").slice(0, 3).map((r) => ({ ...r, status: "Delivered", recvQty: r.qty, deliveredDate: iso(today) }));
+    const newPos = [0, 1, 2].map((k) => {
+      const [item, price] = items[(k * 5 + 1) % items.length]; const qty = (k + 2) * 100;
+      return { po: "PO-" + (4510257 + k), vendor: vendors[(k * 2 + 1) % vendors.length], item, qty, recvQty: 0, amount: qty * price, orderDate: iso(today), dueDate: iso(addDays(today, 14 + k * 4)), deliveredDate: "", status: "Approved" };
+    });
+    const queued = [{ ...rows[rows.length - 1], status: "Shipped" }, { ...rows[rows.length - 3], status: "Delayed" }];
+
+    const s = { pos: {}, emails: [], watch: [], imports: [], queued: null };
+    state = s;
+    const fmtSubj = (d) => `Daily PO Status Report — ${toDate(iso(d)).toLocaleDateString(LOCALE, { day: "2-digit", month: "short", year: "numeric" })}`;
+    s.emails = [
+      { id: "m3", subject: fmtSubj(today), from: "erp-reports@yourcompany.com", received: iso(today) + " 07:05", body: toBody([...fresh, ...newPos], "Please find today's open PO status below. 3 deliveries confirmed, 3 new POs released."), imported: false },
+      { id: "m2", subject: fmtSubj(addDays(today, -1)), from: "erp-reports@yourcompany.com", received: iso(addDays(today, -1)) + " 07:04", body: toBody(rows.slice(9), "Please find today's open PO status below."), imported: true },
+      { id: "m1", subject: fmtSubj(addDays(today, -2)), from: "erp-reports@yourcompany.com", received: iso(addDays(today, -2)) + " 07:06", body: toBody(rows.slice(0, 14), "Please find today's open PO status below."), imported: true },
+    ];
+    s.queued = { id: "m4", subject: "Shipment status update — BlueLine Logistics", from: "dispatch@bluelinelogistics.example", received: iso(today) + " 11:20", body: toBody(queued, "Dispatch status for your open orders:"), imported: false };
+    for (const r of rows) {
+      const src = rows.indexOf(r) % 3 === 0 ? "Excel" : "Email";
+      s.pos[r.po] = { ...r, source: src, history: [{ at: r.orderDate, source: src, status: "Open" }, ...(r.status !== "Open" ? [{ at: iso(addDays(today, -1)), source: src, status: r.status }] : [])] };
+    }
+    s.imports = [
+      { at: iso(addDays(today, -1)) + " 07:10", source: "Email", name: s.emails[1].subject, added: 3, updated: 14 },
+      { at: iso(addDays(today, -3)) + " 16:42", source: "Excel", name: "open_po_export_week41.xlsx", added: 9, updated: 0 },
+      { at: iso(addDays(today, -2)) + " 07:10", source: "Email", name: s.emails[2].subject, added: 14, updated: 0 },
+    ];
+    s.watch = [rows[4].po, rows[14].po, rows[20].po, "PO-4510259", "PO-4510999"];
+    save();
+    return s;
+  }
+
+  // ---------- derived ----------
+  const isOpen = (p) => p.status !== "Delivered" && p.status !== "Cancelled";
+  const isLate = (p) => isOpen(p) && p.dueDate && p.dueDate < iso(today);
+  const allPos = () => Object.values(state.pos);
+
+  function kpis(list) {
+    const active = list.filter((p) => p.status !== "Cancelled");
+    const open = list.filter(isOpen);
+    const delivered = list.filter((p) => p.status === "Delivered" && p.deliveredDate && p.dueDate);
+    const onTime = delivered.filter((p) => p.deliveredDate <= p.dueDate).length;
+    const ordered = active.reduce((a, p) => a + (p.qty || 0), 0);
+    const recv = active.reduce((a, p) => a + Math.min(p.recvQty || 0, p.qty || 0), 0);
+    const leads = delivered.filter((p) => p.orderDate).map((p) => daysBetween(p.orderDate, p.deliveredDate));
+    return {
+      total: list.length, open: open.length,
+      openValue: open.reduce((a, p) => a + (p.amount || 0), 0),
+      otd: delivered.length ? Math.round((onTime / delivered.length) * 100) : null, deliveredCount: delivered.length,
+      late: list.filter(isLate).length,
+      fill: ordered ? Math.round((recv / ordered) * 100) : null,
+      lead: leads.length ? Math.round(leads.reduce((a, b) => a + b, 0) / leads.length) : null,
+    };
+  }
+
+  // ---------- render: overview ----------
+  function renderOverview() {
+    const list = allPos();
+    const k = kpis(list);
+    $("#kpis").innerHTML = [
+      ["Total POs", int(k.total), `${k.open} open`, ""],
+      ["Open PO value", money(k.openValue, true), money(k.openValue), ""],
+      ["On-time delivery", k.otd == null ? "—" : k.otd + "%", `${k.deliveredCount} delivered POs`, k.otd >= 85 ? "good" : k.otd < 70 ? "alert" : ""],
+      ["Overdue POs", int(k.late), "open past due date", k.late ? "alert" : "good"],
+      ["Fill rate", k.fill == null ? "—" : k.fill + "%", "received ÷ ordered qty", ""],
+      ["Avg lead time", k.lead == null ? "—" : k.lead + " d", "order to delivery", ""],
+    ].map(([l, v, s, c]) => `<div class="kpi ${c}"><span class="label">${l}</span><span class="value">${v}</span><span class="sub">${s}</span></div>`).join("");
+
+    // status stack
+    const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+    list.forEach((p) => (counts[p.status] = (counts[p.status] || 0) + 1));
+    $("#mixTotal").textContent = `${list.length} POs`;
+    $("#statusStack").innerHTML = STATUSES.filter((s) => counts[s]).map((s) => `<span class="c-${s}" style="width:${(counts[s] / list.length) * 100}%" title="${s}: ${counts[s]}"></span>`).join("");
+    $("#statusLegend").innerHTML = STATUSES.map((s) => `<span><i class="c-${s}"></i>${s} <b class="num">${counts[s]}</b></span>`).join("");
+
+    // vendor bars
+    const byV = {};
+    list.filter(isOpen).forEach((p) => (byV[p.vendor || "Unknown"] = (byV[p.vendor || "Unknown"] || 0) + (p.amount || 0)));
+    const vs = Object.entries(byV).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const max = vs[0]?.[1] || 1;
+    $("#vendorBars").innerHTML = vs.length ? vs.map(([v, a]) => `<div class="bar-row"><span class="name" title="${esc(v)}">${esc(v)}</span><div class="bar-track"><div class="bar-fill" style="width:${(a / max) * 100}%"></div></div><span class="num muted">${money(a, true)}</span></div>`).join("") : `<div class="empty">No open POs</div>`;
+
+    // overdue & due soon
+    const late = list.filter(isLate).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    $("#overdueCount").textContent = `${late.length} POs`;
+    $("#overdueList").innerHTML = late.length ? late.slice(0, 6).map((p) => li(p, `<span class="chip crit">${daysBetween(p.dueDate, iso(today))} d late</span>`)).join("") : `<div class="empty">Nothing overdue</div>`;
+    const soon = list.filter((p) => isOpen(p) && p.dueDate >= iso(today) && p.dueDate <= iso(addDays(today, 7))).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    $("#dueCount").textContent = `${soon.length} POs`;
+    $("#dueList").innerHTML = soon.length ? soon.slice(0, 6).map((p) => { const d = daysBetween(iso(today), p.dueDate); return li(p, `<span class="chip ${d <= 2 ? "warn" : ""}">${d === 0 ? "today" : "in " + d + " d"}</span>`); }).join("") : `<div class="empty">Nothing due this week</div>`;
+
+    renderTable();
+  }
+
+  const li = (p, right) => `<div class="list-item"><div style="min-width:0"><span class="mono">${esc(p.po)}</span> <span class="muted">· ${esc(p.vendor)}</span><div class="muted" style="font-size:.8rem">${esc(p.item)} · ${money(p.amount)}</div></div><div class="row">${pill(p.status)}${right}</div></div>`;
+  const pill = (s) => `<span class="pill s-${esc(s)}">${esc(s)}</span>`;
+
+  function renderTable() {
+    const q = $("#q").value.trim().toLowerCase();
+    const fs = $("#fStatus").value, fsrc = $("#fSource").value;
+    const list = allPos().filter((p) => (!fs || p.status === fs) && (!fsrc || p.source === fsrc) && (!q || `${p.po} ${p.vendor} ${p.item}`.toLowerCase().includes(q)))
+      .sort((a, b) => (b.orderDate || "").localeCompare(a.orderDate || ""));
+    $("#poRows").innerHTML = list.length ? list.map((p) => {
+      const w = state.watch.includes(p.po);
+      return `<tr class="${isLate(p) ? "late" : ""}"><td class="mono">${esc(p.po)}</td><td>${esc(p.vendor)}</td><td>${esc(p.item)}</td><td class="r num">${p.qty == null ? "—" : int(p.qty)}</td><td class="r num">${p.recvQty == null ? "—" : int(p.recvQty)}</td><td class="r num">${p.amount == null ? "—" : money(p.amount)}</td><td class="num">${fmtDate(p.orderDate)}</td><td class="num">${fmtDate(p.dueDate)}${isLate(p) ? ' <span class="chip crit">late</span>' : ""}</td><td>${pill(p.status)}</td><td><span class="chip">${esc(p.source)}</span></td><td><button class="btn ghost" data-watch="${esc(p.po)}" aria-pressed="${w}">${w ? "Tracking" : "+ Track"}</button></td></tr>`;
+    }).join("") : `<tr><td colspan="11" class="empty">No POs match these filters</td></tr>`;
+  }
+
+  // ---------- render: email ----------
+  let selectedMail = null;
+  function renderEmail() {
+    if (!selectedMail || !state.emails.find((m) => m.id === selectedMail)) selectedMail = state.emails[0]?.id;
+    $("#mailList").innerHTML = state.emails.map((m) => {
+      const n = parseTextReport(m.body).rows.length;
+      return `<button class="mail-item" data-mail="${m.id}" aria-current="${m.id === selectedMail}"><span class="subj">${esc(m.subject)}</span><span class="meta"><span>${esc(m.from)}</span><span class="num">${esc(m.received.slice(5))}</span></span><span class="meta"><span>${n} POs in report</span>${m.imported ? '<span class="chip good">Imported</span>' : '<span class="chip warn">New</span>'}</span></button>`;
+    }).join("");
+    const m = state.emails.find((x) => x.id === selectedMail);
+    if (!m) { $("#mailView").innerHTML = `<div class="empty">No report emails yet</div>`; return; }
+    const parsed = parseTextReport(m.body);
+    const rows = parsed.rows.map((r) => {
+      const cur = state.pos[r.po];
+      const change = !cur ? '<span class="chip good">new</span>' : cur.status !== r.status && r.status ? `<span class="chip warn">${esc(cur.status)} → ${esc(r.status)}</span>` : '<span class="chip">no change</span>';
+      return `<tr><td class="mono">${esc(r.po)}</td><td>${esc(r.vendor)}</td><td class="r num">${r.qty == null ? "—" : int(r.qty)}</td><td class="num">${fmtDate(r.dueDate)}</td><td>${r.status ? pill(r.status) : "—"}</td><td>${m.imported ? "" : change}</td></tr>`;
+    }).join("");
+    $("#mailView").innerHTML = `
+      <div class="panel-head"><div style="min-width:0"><h2>${esc(m.subject)}</h2><div class="muted" style="font-size:.8rem">From ${esc(m.from)} · ${esc(m.received)}</div></div>
+      ${m.imported ? '<span class="chip good">Imported</span>' : `<button class="btn primary" data-import-mail="${m.id}">Import ${parsed.rows.length} POs</button>`}</div>
+      <div style="display:grid;gap:12px">
+        <div class="mail-body">${esc(m.body)}</div>
+        <span class="label">Extracted from email · ${parsed.rows.length} rows</span>
+        <div class="table-wrap"><table><thead><tr><th>PO number</th><th>Vendor</th><th class="r">Qty</th><th>Due</th><th>Status</th><th>${m.imported ? "" : "Change"}</th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="empty">No PO table found in this email</td></tr>'}</tbody></table></div>
+      </div>`;
+  }
+
+  // ---------- render: tracker ----------
+  function renderTracker() {
+    const tracked = state.watch.map((po) => state.pos[po]).filter(Boolean);
+    const k = kpis(tracked);
+    $("#trackKpis").innerHTML = [
+      ["Tracking", int(state.watch.length), `${state.watch.length - tracked.length} not in reports yet`, ""],
+      ["Open value", money(k.openValue, true), `${k.open} open POs`, ""],
+      ["Overdue", int(k.late), "past due date", k.late ? "alert" : "good"],
+      ["Fill rate", k.fill == null ? "—" : k.fill + "%", "received ÷ ordered", ""],
+    ].map(([l, v, s, c]) => `<div class="kpi ${c}"><span class="label">${l}</span><span class="value">${v}</span><span class="sub">${s}</span></div>`).join("");
+
+    const stages = ["Open", "Approved", "Shipped", "Delivered"];
+    $("#trackGrid").innerHTML = state.watch.length ? state.watch.map((po) => {
+      const p = state.pos[po];
+      if (!p) return `<article class="track missing"><div class="track-top"><span class="track-po">${esc(po)}</span><button class="btn ghost" data-unwatch="${esc(po)}" aria-label="Stop tracking ${esc(po)}">Remove</button></div><p class="muted" style="margin:0">Not found in any email report or Excel upload yet. It will fill in automatically when a report mentions this PO.</p></article>`;
+      const idx = p.status === "Delayed" ? (p.recvQty ? 2 : 1) : Math.max(0, stages.indexOf(p.status));
+      const bad = p.status === "Delayed" || p.status === "Cancelled";
+      let dueChip = "";
+      if (isOpen(p) && p.dueDate) { const d = daysBetween(iso(today), p.dueDate); dueChip = d < 0 ? `<span class="chip crit">${-d} d overdue</span>` : `<span class="chip ${d <= 3 ? "warn" : ""}">due in ${d} d</span>`; }
+      if (p.status === "Delivered" && p.deliveredDate && p.dueDate) dueChip = p.deliveredDate <= p.dueDate ? '<span class="chip good">on time</span>' : `<span class="chip warn">${daysBetween(p.dueDate, p.deliveredDate)} d late</span>`;
+      const fill = p.qty ? Math.min(100, Math.round(((p.recvQty || 0) / p.qty) * 100)) : 0;
+      return `<article class="track">
+        <div class="track-top"><div><div class="track-po">${esc(p.po)}</div><div class="muted" style="font-size:.82rem">${esc(p.vendor)} · ${esc(p.item)}</div></div><button class="btn ghost" data-unwatch="${esc(po)}" aria-label="Stop tracking ${esc(po)}">Remove</button></div>
+        <div class="row">${pill(p.status)}${dueChip}</div>
+        <div class="steps ${bad ? "bad" : ""}">${stages.map((s, i) => `<span class="step ${p.status !== "Cancelled" && i <= idx ? "done" : ""} ${i === 3 ? "final" : ""}">${s}</span>`).join("")}</div>
+        <dl class="kv num"><dt>Amount</dt><dd>${money(p.amount)}</dd><dt>Ordered / received</dt><dd>${int(p.qty)} / ${int(p.recvQty)} (${fill}%)</dd><dt>Order date</dt><dd>${fmtDate(p.orderDate)}</dd><dt>Due date</dt><dd>${fmtDate(p.dueDate)}</dd><dt>Source</dt><dd>${esc(p.source)}</dd></dl>
+        <div class="history">${p.history.slice(-3).reverse().map((h) => `<span>${fmtDate(h.at)} · ${esc(h.status)} <span class="muted">via ${esc(h.source)}</span></span>`).join("")}</div>
+      </article>`;
+    }).join("") : `<div class="empty panel">Add a PO number above to start tracking it.</div>`;
+  }
+
+  // ---------- render: upload ----------
+  let pending = null; // { name, wb, sheet, rows, map }
+  function renderUpload() {
+    $("#expectedCols").innerHTML = FIELDS.map((f) => `<span class="chip"><b>${f.label}</b>${f.key === "po" ? " · required" : ""}</span>`).join("");
+    $("#importLog").innerHTML = state.imports.length ? state.imports.slice().sort((a, b) => b.at.localeCompare(a.at)).map((i) => `<div class="list-item"><div style="min-width:0"><b>${esc(i.name)}</b><div class="muted" style="font-size:.8rem">${esc(i.at)}</div></div><div class="row"><span class="chip">${esc(i.source)}</span><span class="chip good">${i.added} new</span><span class="chip">${i.updated} updated</span></div></div>`).join("") : `<div class="empty">No imports yet</div>`;
+    const pp = $("#previewPanel");
+    if (!pending) { pp.hidden = true; return; }
+    pp.hidden = false;
+    $("#previewTitle").textContent = `Preview · ${pending.name}`;
+    $("#sheetSel").innerHTML = pending.wb.SheetNames.map((n) => `<option ${n === pending.sheet ? "selected" : ""}>${esc(n)}</option>`).join("");
+    $("#sheetSel").hidden = pending.wb.SheetNames.length < 2;
+    const sheet = pending.wb.Sheets[pending.sheet];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: true });
+    const headers = raw.length ? Object.keys(raw[0]) : [];
+    const map = mapHeaders(headers);
+    const pos = rowsToPos(raw, map);
+    pending.pos = pos;
+    $("#mapChips").innerHTML = FIELDS.map((f) => map[f.key] !== undefined ? `<span class="chip good">${f.label} ← <b>${esc(map[f.key])}</b></span>` : `<span class="chip ${f.key === "po" ? "crit" : ""}">${f.label} · not found</span>`).join("") + `<span class="chip">${pos.length} of ${raw.length} rows have a PO number</span>`;
+    $("#doImport").disabled = !pos.length;
+    $("#doImport").textContent = pos.length ? `Import ${pos.length} POs` : "Import";
+    $("#pvHead").innerHTML = `<tr><th>PO number</th><th>Vendor</th><th>Item</th><th class="r">Qty</th><th class="r">Received</th><th class="r">Amount</th><th>Order</th><th>Due</th><th>Status</th><th>Result</th></tr>`;
+    $("#pvBody").innerHTML = pos.slice(0, 12).map((r) => `<tr><td class="mono">${esc(r.po)}</td><td>${esc(r.vendor)}</td><td>${esc(r.item)}</td><td class="r num">${r.qty ?? "—"}</td><td class="r num">${r.recvQty ?? "—"}</td><td class="r num">${r.amount == null ? "—" : money(r.amount)}</td><td>${fmtDate(r.orderDate)}</td><td>${fmtDate(r.dueDate)}</td><td>${r.status ? pill(r.status) : "—"}</td><td>${state.pos[r.po] ? '<span class="chip">update</span>' : '<span class="chip good">new</span>'}</td></tr>`).join("") + (pos.length > 12 ? `<tr><td colspan="10" class="muted">…and ${pos.length - 12} more rows</td></tr>` : "") || `<tr><td colspan="10" class="empty">No rows with a PO number found. Check that the sheet has a "PO Number" column.</td></tr>`;
+  }
+
+  function readFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true });
+        pending = { name: file.name, wb, sheet: wb.SheetNames[0] };
+        renderUpload();
+      } catch (err) { toast("Could not read this file. Save it as .xlsx or .csv and try again."); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ---------- tabs ----------
+  const TABS = ["overview", "email", "tracker", "upload"];
+  function show(tab) {
+    if (!TABS.includes(tab)) tab = "overview";
+    document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== tab));
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === tab));
+    try { localStorage.setItem(STORE_KEY + ".tab", tab); } catch (e) {}
+    renderAll();
+  }
+  function renderAll() {
+    const newMail = state.emails.filter((m) => !m.imported).length;
+    $("#cnt-email").textContent = newMail || "";
+    $("#cnt-email").className = "count" + (newMail ? " hot" : "");
+    $("#cnt-email").hidden = !newMail;
+    $("#cnt-track").textContent = state.watch.length;
+    $("#syncInfo").textContent = `${Object.keys(state.pos).length} POs · as of ${today.toLocaleDateString(LOCALE, { day: "2-digit", month: "short", year: "numeric" })}`;
+    const cur = document.querySelector(".tab[aria-selected='true']")?.dataset.tab;
+    if (cur === "overview") renderOverview();
+    if (cur === "email") renderEmail();
+    if (cur === "tracker") renderTracker();
+    if (cur === "upload") renderUpload();
+  }
+
+  // ---------- events ----------
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.tab) { show(t.dataset.tab); return; }
+    if (t.dataset.watch) {
+      const po = t.dataset.watch;
+      state.watch = state.watch.includes(po) ? state.watch.filter((x) => x !== po) : [...state.watch, po];
+      save(); renderAll(); toast(state.watch.includes(po) ? `Tracking ${po}` : `Stopped tracking ${po}`); return;
+    }
+    if (t.dataset.unwatch) { state.watch = state.watch.filter((x) => x !== t.dataset.unwatch); save(); renderAll(); return; }
+    if (t.dataset.mail) { selectedMail = t.dataset.mail; renderEmail(); return; }
+    if (t.dataset.importMail) {
+      const m = state.emails.find((x) => x.id === t.dataset.importMail);
+      const r = upsert(parseTextReport(m.body).rows, "Email");
+      m.imported = true;
+      state.imports.push({ at: iso(today) + " " + new Date().toTimeString().slice(0, 5), source: "Email", name: m.subject, ...r });
+      save(); renderAll(); toast(`Imported: ${r.added} new, ${r.updated} updated`); return;
+    }
+  });
+
+  $("#checkInbox").addEventListener("click", () => {
+    if (state.queued) { state.emails.unshift(state.queued); selectedMail = state.queued.id; state.queued = null; save(); renderAll(); toast("1 new report email"); }
+    else toast(`Inbox checked at ${nowStamp()}. No new report emails.`);
+  });
+
+  $("#pasteParse").addEventListener("click", () => {
+    const rows = parseTextReport($("#pasteBox").value).rows;
+    if (!rows.length) { $("#pasteMsg").textContent = "No PO rows found. Include a header row with a PO Number column."; return; }
+    const r = upsert(rows, "Email");
+    state.imports.push({ at: iso(today) + " " + new Date().toTimeString().slice(0, 5), source: "Email", name: "Pasted email report", ...r });
+    save(); $("#pasteBox").value = ""; $("#pasteMsg").textContent = `Imported: ${r.added} new, ${r.updated} updated`; renderAll();
+  });
+
+  $("#trackForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const nums = $("#trackInput").value.split(/[\s,;]+/).map(normPo).filter(Boolean);
+    const fresh = nums.filter((n) => !state.watch.includes(n));
+    state.watch.push(...fresh); save();
+    $("#trackInput").value = "";
+    renderAll();
+    if (nums.length) toast(fresh.length ? `Added ${fresh.length} PO${fresh.length > 1 ? "s" : ""}` : "Already tracking these POs");
+  });
+
+  ["#q", "#fStatus", "#fSource"].forEach((s) => $(s).addEventListener("input", renderTable));
+  $("#fStatus").insertAdjacentHTML("beforeend", STATUSES.map((s) => `<option>${s}</option>`).join(""));
+
+  const drop = $("#drop");
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) readFile(f); });
+  $("#fileInput").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) readFile(f); e.target.value = ""; });
+  $("#sheetSel").addEventListener("change", (e) => { pending.sheet = e.target.value; renderUpload(); });
+  $("#doImport").addEventListener("click", () => {
+    if (!pending?.pos?.length) return;
+    const r = upsert(pending.pos, "Excel");
+    state.imports.push({ at: iso(today) + " " + new Date().toTimeString().slice(0, 5), source: "Excel", name: pending.name, ...r });
+    save(); pending = null; renderAll(); toast(`Imported: ${r.added} new, ${r.updated} updated`);
+  });
+  $("#copyHeader").addEventListener("click", () => {
+    const text = FIELDS.map((f) => f.label).join("\t");
+    navigator.clipboard?.writeText(text).then(() => toast("Header row copied. Paste it into row 1 of your sheet."), () => toast(text));
+  });
+
+  // ---------- boot ----------
+  state = load();
+  let start = "overview";
+  try { start = localStorage.getItem(STORE_KEY + ".tab") || start; } catch (e) {}
+  if (TABS.includes(location.hash.slice(1))) start = location.hash.slice(1);
+  show(start);
+  window.PODesk = { reset() { try { localStorage.removeItem(STORE_KEY); } catch (e) {} state = seed(); renderAll(); } };
+})();
+</script>
+</body>
+</html>
