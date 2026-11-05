@@ -196,6 +196,7 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button class="tab" role="tab" data-tab="overview" id="tab-overview">Overview</button>
       <button class="tab" role="tab" data-tab="register" id="tab-register">PO register</button>
+      <button class="tab" role="tab" data-tab="requisition" id="tab-requisition">Requisitions</button>
       <button class="tab" role="tab" data-tab="tracker" id="tab-tracker">My PO tracker <span class="count" id="cnt-track"></span></button>
       <button class="tab" role="tab" data-tab="upload" id="tab-upload">Upload Excel</button>
     </nav>
@@ -303,6 +304,28 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
         </table>
       </div>
       <div class="row" style="margin-top:10px;justify-content:space-between"><span class="muted small" id="regCount"></span><button class="btn" id="regMore" hidden>Show more</button></div>
+    </div>
+  </section>
+
+  <!-- REQUISITIONS -->
+  <section data-view="requisition" class="stack-v" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <div style="min-width:0"><h2>Requisition-wise, month-wise</h2><div class="muted small">Requisition = the PO Remarks text. Click a row to see its POs.</div></div>
+        <div class="row">
+          <input class="input" id="rq" type="search" placeholder="Search requisition" aria-label="Search requisition" style="min-width:200px">
+          <select class="input" id="rqMetric" aria-label="Show">
+            <option value="net">Net amount</option><option value="pend">Pending value</option><option value="recv">Received value</option><option value="pos">No. of POs</option><option value="lines">No. of lines</option>
+          </select>
+          <select class="input" id="rqBy" aria-label="Month by">
+            <option value="created">Month of PO date</option><option value="delivery">Month of delivery date</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap" style="max-height:680px">
+        <table><thead id="rqHead"></thead><tbody id="rqBody"></tbody></table>
+      </div>
+      <div class="muted small" id="rqCount" style="margin-top:10px"></div>
     </div>
   </section>
 
@@ -691,6 +714,44 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
     return `${note}<div class="table-wrap ${compact ? "lines-mini" : ""}"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
   }
 
+  // ---------- render: requisitions ----------
+  const rqOpen = new Set();
+  const monthLabel = (m) => (m === "—" ? "No date" : toDate(m + "-01").toLocaleDateString(LOCALE, { month: "short", year: "numeric" }));
+  function renderRequisition() {
+    const { pos } = data();
+    const metric = $("#rqMetric").value, by = $("#rqBy").value, q = $("#rq").value.trim().toLowerCase();
+    const val = { net: (p) => p.value, pend: (p) => (p.open ? p.pendV : 0), recv: (p) => p.recvV, pos: () => 1, lines: (p) => p.lines.length }[metric];
+    const fmt = metric === "pos" || metric === "lines" ? (n) => (n ? int(n) : "") : (n) => (n ? money(n) : "");
+    const groups = new Map(), monthSet = new Set(), colTot = {};
+    for (const p of pos) {
+      const name = (p.remarks || "").replace(/\s+/g, " ").trim() || "(No PO remarks)";
+      const key = name.toLowerCase();
+      const m = ((by === "delivery" ? p.delivery : p.created || p.orderDate) || "").slice(0, 7) || "—";
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = { name, months: {}, total: 0, pos: [], value: 0, recv: 0, cancel: 0, pend: 0, late: 0 }));
+      const v = val(p);
+      g.months[m] = (g.months[m] || 0) + v; g.total += v; colTot[m] = (colTot[m] || 0) + v;
+      g.pos.push(p); g.value += p.value; g.recv += p.recvV; g.cancel += p.cancelV; if (p.open) g.pend += p.pendV; if (p.lateDays > 0) g.late++;
+      monthSet.add(m);
+    }
+    const months = [...monthSet].sort((a, b) => (a === "—") - (b === "—") || a.localeCompare(b));
+    let list = [...groups.values()];
+    if (q) list = list.filter((g) => g.name.toLowerCase().includes(q));
+    list.sort((a, b) => b.total - a.total);
+    const cols = 6 + months.length;
+    $("#rqHead").innerHTML = `<tr><th></th><th>Requisition</th><th class="r">POs</th>${months.map((m) => `<th class="r">${monthLabel(m)}</th>`).join("")}<th class="r">Total</th><th class="r">Received</th><th class="r">Pending value</th></tr>`;
+    const grand = list.reduce((a, g) => a + g.total, 0);
+    const totRow = `<tr><td></td><td><b>Total (${int(list.length)} requisitions)</b></td><td class="r num"><b>${int(list.reduce((a, g) => a + g.pos.length, 0))}</b></td>${months.map((m) => `<td class="r num"><b>${fmt(list.reduce((a, g) => a + (g.months[m] || 0), 0))}</b></td>`).join("")}<td class="r num"><b>${fmt(grand)}</b></td><td class="r num"><b>${pct(list.reduce((a, g) => a + g.recv, 0), list.reduce((a, g) => a + g.value - g.cancel, 0))}%</b></td><td class="r num"><b>${money(list.reduce((a, g) => a + g.pend, 0))}</b></td></tr>`;
+    $("#rqBody").innerHTML = list.length ? totRow + list.map((g) => {
+      const ex = rqOpen.has(g.name);
+      const row = `<tr class="po-row" data-rq="${esc(g.name)}" aria-expanded="${ex}"><td><span class="caret">▸</span></td><td class="trunc" style="max-width:320px" title="${esc(g.name)}">${esc(g.name)}${g.late ? ` <span class="chip crit">${g.late} overdue</span>` : ""}</td><td class="r num">${g.pos.length}</td>${months.map((m) => `<td class="r num">${fmt(g.months[m] || 0)}</td>`).join("")}<td class="r num"><b>${fmt(g.total)}</b></td><td class="r num">${pct(g.recv, g.value - g.cancel)}%</td><td class="r num">${g.pend ? money(g.pend) : "—"}</td></tr>`;
+      if (!ex) return row;
+      const sub = g.pos.slice().sort((a, b) => (a.created || "").localeCompare(b.created || "")).map((p) => `<tr class="${p.lateDays > 0 ? "late" : ""}"><td class="mono">${esc(p.po)}</td><td class="num">${fmtDate(p.created, true)}</td><td>${esc(p.party)}</td><td>${esc(siteShort(p.site))}</td><td>${esc([...p.depts].join(", "))}</td><td class="r num">${money(p.value)}</td><td class="r num">${p.recvPct}%</td><td class="r num">${p.open ? money(p.pendV) : "—"}</td><td class="num">${fmtDate(p.delivery)} ${lateChip(p)}</td><td>${pill(p.status)}</td><td>${trackBtn(p.po)}</td></tr>`).join("");
+      return row + `<tr class="detail"><td colspan="${cols}"><div class="table-wrap"><table><thead><tr><th>PO number</th><th>PO date</th><th>Supplier</th><th>Site</th><th>Department</th><th class="r">PO value</th><th class="r">Received</th><th class="r">Pending value</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${sub}</tbody></table></div></td></tr>`;
+    }).join("") : `<tr><td colspan="${cols}" class="empty">No requisitions match.</td></tr>`;
+    $("#rqCount").textContent = `${int(list.length)} requisitions · grouped by PO Remarks, ignoring capital letters and extra spaces`;
+  }
+
   // ---------- render: tracker ----------
   function renderTracker() {
     const { allByPo } = data();
@@ -793,33 +854,34 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
   }
 
   // ---------- tabs ----------
-  const TABS = ["overview", "register", "tracker", "upload"];
+  const TABS = ["overview", "register", "requisition", "tracker", "upload"];
   let current = "overview";
   function show(tab) {
     current = TABS.includes(tab) ? tab : "overview";
     document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== current));
     document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === current));
-    $("#filters").hidden = !(current === "overview" || current === "register");
+    $("#filters").hidden = !["overview", "register", "requisition"].includes(current);
     try { localStorage.setItem(STORE_KEY + ".tab", current); } catch (e) {}
     renderAll();
   }
   function renderAll() {
     $("#cnt-track").textContent = state.watch.length;
-    const noData = !state.lines.length && (current === "overview" || current === "register");
+    const noData = !state.lines.length && ["overview", "register", "requisition"].includes(current);
     $("#emptyState").hidden = !noData;
     document.querySelectorAll("[data-view]").forEach((sec) => (sec.hidden = sec.dataset.view !== current || noData));
-    $("#filters").hidden = noData || !(current === "overview" || current === "register");
+    $("#filters").hidden = noData || !["overview", "register", "requisition"].includes(current);
     const n = new Set(state.lines.map((l) => l.po)).size;
     $("#syncInfo").textContent = n ? `${int(n)} POs · report ${fmtDate(asOf(), true)}` : "no data uploaded";
     if (current === "overview") renderOverview();
     if (current === "register") renderRegister();
+    if (current === "requisition") renderRequisition();
     if (current === "tracker") renderTracker();
     if (current === "upload") renderUpload();
   }
 
   // ---------- events ----------
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("button, tr[data-expand]"); if (!t) return;
+    const t = e.target.closest("button, tr[data-expand], tr[data-rq]"); if (!t) return;
     if (t.dataset.tab) { show(t.dataset.tab); return; }
     if (t.dataset.watch !== undefined && t.dataset.watch) {
       e.stopPropagation();
@@ -828,6 +890,7 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
       save(); renderAll(); toast(state.watch.includes(po) ? `Tracking ${po}` : `Stopped tracking ${po}`); return;
     }
     if (t.dataset.unwatch) { state.watch = state.watch.filter((x) => x !== t.dataset.unwatch); save(); renderAll(); return; }
+    if (t.dataset.rq) { const k = t.dataset.rq; rqOpen.has(k) ? rqOpen.delete(k) : rqOpen.add(k); renderRequisition(); return; }
     if (t.dataset.expand) { const po = t.dataset.expand; expanded.has(po) ? expanded.delete(po) : expanded.add(po); renderRegister(); return; }
     if (t.hasAttribute("data-goto-overdue")) { $("#fStatus").value = "overdue"; $("#fSort").value = "pending"; show("register"); return; }
   });
@@ -856,6 +919,7 @@ tr[aria-expanded="true"] .caret { transform: rotate(90deg); }
   ["#fSite", "#fDept", "#fParty", "#fBy"].forEach((s) => $(s).addEventListener("change", onFilter));
   $("#fClear").addEventListener("click", () => { Object.keys(filt).forEach((x) => (filt[x] = "")); fillFilters(); renderAll(); });
   ["#q", "#fStatus", "#fSort"].forEach((s) => $(s).addEventListener("input", () => { regLimit = 150; renderRegister(); }));
+  ["#rq", "#rqMetric", "#rqBy"].forEach((s) => $(s).addEventListener("input", renderRequisition));
   $("#regMore").addEventListener("click", () => { regLimit += 300; renderRegister(); });
 
   const drop = $("#drop");

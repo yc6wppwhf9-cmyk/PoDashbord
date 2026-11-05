@@ -8,6 +8,7 @@ A single-page purchase-order dashboard built around the ERP **Purchase_Order_Rep
 | --- | --- |
 | **Overview** | KPIs: total POs, PO value, open POs, pending value, overdue POs, received % (by value), cancelled value, POs whose validity is ending. Also: status by count and value, pending value by delay, top suppliers and departments by pending value, overdue and due-in-7-days lists, **department-wise** table (POs, lines, order qty per UOM, net amount, received, pending, overdue), **orders placed by** table, and a site summary. |
 | **PO register** | Every PO with search, status filter (New / Partial / Received-cancelled / Overdue) and sorting. Click a row to see its item lines. |
+| **Requisitions** | POs grouped by requisition (the PO Remarks text) with one column per month (PO date or delivery date). Switch between net amount, pending value, received value, number of POs or lines. Click a requisition to see its POs. |
 | **My PO tracker** | Type full PO numbers or just the serial (`1312`, `HSB 497`). Each card shows status, delivery and validity alerts, received / cancelled / pending value, item lines, and change history across uploads. |
 | **Upload Excel** | Drop the export as it comes from the ERP. Title rows and the totals row are skipped. Each upload replaces the register (the export is a full snapshot). |
 
