@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MR–PO Mapping Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky top bar with four tabs (Requisitions → PO inbox → Map → MR view), one working surface each. */
+:root {
+  --bg: #f2f4f7; --surface: #ffffff; --surface-2: #e9edf2; --line: #d4dbe4;
+  --fg: #121a26; --muted: #5a6475;
+  --accent: #0f6b62; --accent-ink: #ffffff; --accent-soft: #dcefec;
+  --good: #17844a; --good-soft: #dcf1e5; --warn: #a8690f; --warn-soft: #fbeed7;
+  --crit: #c0352a; --crit-soft: #fbe1de; --info: #2f55c4; --info-soft: #e1e8fb;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1217; --surface: #151c23; --surface-2: #1d252e; --line: #2a3440; --fg: #e5ebf1; --muted: #97a3b2;
+    --accent: #4fc3b4; --accent-ink: #0d1217; --accent-soft: #143430;
+    --good: #4cc283; --good-soft: #15301f; --warn: #e3a94a; --warn-soft: #33270f; --crit: #f0776b; --crit-soft: #3a1a17; --info: #8ea9ff; --info-soft: #1d2848;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1217; --surface: #151c23; --surface-2: #1d252e; --line: #2a3440; --fg: #e5ebf1; --muted: #97a3b2;
+  --accent: #4fc3b4; --accent-ink: #0d1217; --accent-soft: #143430;
+  --good: #4cc283; --good-soft: #15301f; --warn: #e3a94a; --warn-soft: #33270f; --crit: #f0776b; --crit-soft: #3a1a17; --info: #8ea9ff; --info-soft: #1d2848;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 1.05rem; font-weight: 700; }
+h3 { font-size: 0.95rem; font-weight: 700; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 0.8rem; }
+.label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar-inner { max-width: 1320px; margin: 0 auto; padding-inline: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 24px; padding-block: 10px 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; flex-wrap: wrap; }
+.brand h1 { font-size: 1.2rem; font-weight: 800; }
+.brand .tag { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); background: var(--warn-soft); color: var(--warn); padding: 1px 8px; border-radius: 99px; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; margin-left: auto; max-width: 100%; }
+.tab { border: 0; background: none; padding: 10px 14px 12px; cursor: pointer; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tab .count { font-family: var(--font-mono); font-size: 0.7rem; background: var(--surface-2); padding: 0 6px; border-radius: 99px; }
+.tab .count.hot { background: var(--warn); color: var(--surface); }
+.tab .step { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); }
+
+main { max-width: 1320px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 60px; }
+.stack { display: grid; gap: 18px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grid-2 { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 18px; align-items: start; }
+@media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
+.grid-2 > * { min-width: 0; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; background: none; color: var(--muted); padding: 4px 8px; }
+.btn.ghost:hover { color: var(--fg); background: var(--surface-2); }
+.btn.danger { color: var(--crit); border-color: var(--crit); }
+.btn.sm { padding: 3px 9px; font-size: 0.8rem; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.input { border: 1px solid var(--line); background: var(--surface); padding: 6px 9px; border-radius: 8px; min-width: 0; }
+.input.sm { padding: 3px 7px; font-size: 0.82rem; }
+input.qty { width: 96px; text-align: right; font-variant-numeric: tabular-nums; }
+.inline-edit { border: 1px solid transparent; background: transparent; padding: 3px 6px; border-radius: 6px; width: 100%; min-width: 120px; }
+.inline-edit:hover { border-color: var(--line); }
+.inline-edit:focus { border-color: var(--accent); background: var(--surface); }
+
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 22px 16px; text-align: center; display: grid; gap: 6px; justify-items: center; background: var(--surface); cursor: pointer; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { font-family: var(--font-display); font-size: 1rem; }
+.drops { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+
+.chip { font-size: 0.72rem; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; display: inline-flex; gap: 4px; align-items: center; }
+.chip.good { border-color: var(--good); color: var(--good); }
+.chip.warn { border-color: var(--warn); color: var(--warn); }
+.chip.crit { border-color: var(--crit); color: var(--crit); }
+.chip.info { border-color: var(--info); color: var(--info); }
+.pill { font-size: 0.74rem; font-weight: 600; padding: 1px 9px; border-radius: 99px; white-space: nowrap; display: inline-block; }
+.s-ok { background: var(--good-soft); color: var(--good); }
+.s-partial { background: var(--warn-soft); color: var(--warn); }
+.s-over { background: var(--crit-soft); color: var(--crit); }
+.s-none { background: var(--surface-2); color: var(--muted); }
+.s-extra { background: var(--info-soft); color: var(--info); }
+.s-unmapped { background: var(--warn-soft); color: var(--warn); }
+.s-mapped { background: var(--good-soft); color: var(--good); }
+
+.table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.84rem; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--surface-2); font-weight: 600; position: sticky; top: 0; z-index: 1; }
+td.r, th.r { text-align: right; }
+td.wrap { white-space: normal; min-width: 180px; }
+tbody tr:hover > td { background: var(--bg); }
+tbody tr:last-child td { border-bottom: 0; }
+tr.sel > td { background: var(--accent-soft) !important; }
+tr.clickable { cursor: pointer; }
+.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.kpi { background: var(--surface); padding: 12px 14px; display: grid; gap: 1px; }
+.kpi .value { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi .sub { font-size: 0.75rem; color: var(--muted); }
+.kpi.k-ok .value { color: var(--good); } .kpi.k-partial .value { color: var(--warn); } .kpi.k-over .value { color: var(--crit); } .kpi.k-extra .value { color: var(--info); }
+.kpi.clickable { cursor: pointer; } .kpi.clickable:hover { background: var(--bg); } .kpi.on { box-shadow: inset 0 -3px 0 var(--accent); }
+
+.note { font-size: 0.82rem; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+.empty { padding: 26px 12px; text-align: center; color: var(--muted); }
+.list { display: grid; gap: 6px; max-height: 70vh; overflow: auto; }
+.po-item { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 9px 11px; cursor: pointer; display: grid; gap: 2px; }
+.po-item:hover { background: var(--bg); }
+.po-item[aria-current="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.po-item .top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.sugg { display: flex; flex-wrap: wrap; gap: 8px; }
+.sugg button { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 10px; cursor: pointer; display: grid; gap: 1px; }
+.sugg button:hover { border-color: var(--accent); }
+.sugg button.on { border-color: var(--accent); background: var(--accent-soft); }
+.mr-pick { display: grid; gap: 4px; max-height: 210px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+.mr-pick label { display: flex; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+.mr-pick label:hover { background: var(--bg); }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 9px 15px; border-radius: 8px; font-size: 0.85rem; z-index: 30; max-width: calc(100% - 32px); }
+details summary { cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><h1>MR–PO Mapping Desk</h1><span class="tag">prototype · data stays in this browser</span></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="req"><span class="step">1</span> Requisitions <span class="count" id="c-req">0</span></button>
+      <button class="tab" role="tab" data-tab="inbox"><span class="step">2</span> PO inbox <span class="count" id="c-inbox">0</span></button>
+      <button class="tab" role="tab" data-tab="map"><span class="step">3</span> Map <span class="count" id="c-map">0</span></button>
+      <button class="tab" role="tab" data-tab="view"><span class="step">4</span> MR view</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- 1 REQUISITIONS -->
+  <section data-view="req" class="stack" hidden>
+    <label class="drop" id="reqDrop" for="reqFile">
+      <strong>Upload a requisition sheet</strong>
+      <span class="muted">Single month or multi-month (Dec | Jan | Feb … columns). Each month becomes its own MR.</span>
+      <input type="file" id="reqFile" accept=".xlsx,.xls,.csv" hidden>
+    </label>
+    <div class="panel" id="reqPreview" hidden></div>
+    <div class="panel">
+      <div class="panel-head"><h2>Requisition sheets (MRs)</h2><span class="muted small">Click the MR number or name to edit it.</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>MR number</th><th>Your name</th><th>Month</th><th class="r">INVs</th><th class="r">Required qty</th><th>Mapped POs</th><th class="r">Covered</th><th>Source file</th><th></th></tr></thead>
+        <tbody id="reqRows"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- 2 PO INBOX -->
+  <section data-view="inbox" class="stack" hidden>
+    <div class="drops">
+      <label class="drop" id="regDrop" for="regFile">
+        <strong>PO register (Excel)</strong>
+        <span class="muted">The ERP Purchase_Order_Report export. You pick which POs to bring in.</span>
+        <input type="file" id="regFile" accept=".xlsx,.xls" hidden>
+      </label>
+      <label class="drop" id="pdfDrop" for="pdfFile">
+        <strong>PO PDFs</strong>
+        <span class="muted">Drop one or many. The PO number and lines are read from the PDF; you can correct them.</span>
+        <input type="file" id="pdfFile" accept=".pdf" multiple hidden>
+      </label>
+    </div>
+    <div class="panel" id="regPicker" hidden></div>
+    <div class="panel" id="pdfReview" hidden></div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>POs</h2>
+        <div class="row">
+          <input class="input" id="poSearch" type="search" placeholder="Search PO, supplier, remarks, INV" style="min-width:230px">
+          <select class="input" id="poFilter"><option value="">All</option><option value="unmapped">Unmapped</option><option value="mapped">Mapped</option><option value="pdf">From PDF</option></select>
+          <button class="btn" id="bulkMapBtn" disabled>Map selected →</button>
+        </div>
+      </div>
+      <div class="table-wrap" style="max-height:62vh"><table>
+        <thead><tr><th><input type="checkbox" id="poAll" aria-label="Select all"></th><th>PO number</th><th>Date</th><th>Supplier</th><th>Plan / remarks (as in ERP)</th><th class="r">Lines</th><th class="r">Value</th><th>Source</th><th>Mapped to</th><th></th></tr></thead>
+        <tbody id="poRows"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- 3 MAP -->
+  <section data-view="map" hidden>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head"><h2>POs to map</h2>
+          <select class="input sm" id="mapFilter"><option value="unmapped">Unmapped</option><option value="all">All POs</option></select>
+        </div>
+        <div class="list" id="mapList"></div>
+      </div>
+      <div class="panel" id="mapPane"></div>
+    </div>
+  </section>
+
+  <!-- 4 MR VIEW -->
+  <section data-view="view" class="stack" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="row" style="flex:1 1 280px;min-width:0"><span class="label">Requisition</span><select class="input" id="viewMr" style="width:min(100%,380px)"></select></div>
+        <div class="row"><input class="input" id="viewSearch" type="search" placeholder="Search INV or item"><button class="btn" id="viewCopy">Copy table</button><button class="btn" id="viewExport">Export Excel</button></div>
+      </div>
+      <div class="kpis" id="viewKpis"></div>
+    </div>
+    <div class="panel">
+      <div class="table-wrap" style="max-height:66vh"><table>
+        <thead><tr><th>Dept</th><th>INV</th><th>Item</th><th class="r">Required</th><th class="r">On POs</th><th class="r">Diff</th><th>Status</th><th>POs (qty @ rate)</th><th>Rate check</th><th>Notes on requisition</th></tr></thead>
+        <tbody id="viewRows"></tbody>
+      </table></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+(() => {
+  const KEY = "mrpo.proto.v1";
+  const LOCALE = "en-IN";
+  const MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  const $ = (s) => document.querySelector(s);
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = (v) => { if (v == null || v === "" || v === "-") return null; if (typeof v === "number") return v; const n = parseFloat(String(v).replace(/,/g, "").replace(/[^0-9.\-]/g, "")); return isNaN(n) ? null : n; };
+  const fmt = (n, d = 2) => n == null ? "—" : new Intl.NumberFormat(LOCALE, { maximumFractionDigits: d }).format(n);
+  const money = (n) => { const a = Math.abs(n || 0); if (a >= 1e7) return "₹" + (n / 1e7).toFixed(2) + " Cr"; if (a >= 1e5) return "₹" + (n / 1e5).toFixed(2) + " L"; return "₹" + fmt(n, 0); };
+  const normH = (h) => String(h ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const iso = (v) => { if (!v) return ""; if (v instanceof Date && !isNaN(v)) return new Date(v.getTime() + 12 * 3600e3).toISOString().slice(0, 10); const s = String(v).trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/); if (m) { const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return `${y}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`; } return ""; };
+  const fdate = (s) => s ? new Date(s + "T00:00:00").toLocaleDateString(LOCALE, { day: "2-digit", month: "short", year: "2-digit" }) : "—";
+  const tol = (req) => Math.max(2, req * 0.015);
+  const INV_RE = /^[A-Z]{2,5}\d{3,}[A-Z0-9-]*$/i;
+  const PO_RE = /\bP\.?O\.?\/[A-Z0-9]+\/\d{3,}\/\d{2}-\d{2}\b/i;
+  function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3200); }
+
+  // ---------------- state ----------------
+  let S = load();
+  function blank() { return { mrs: [], pos: {}, alloc: {}, rules: {}, seq: {} }; }
+  function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.mrs) return s; } catch (e) {} return blank(); }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("Browser storage is full — data is kept until you reload."); } }
+  const mrById = (id) => S.mrs.find((m) => m.id === id);
+  const mrLabel = (m) => m ? `${m.num} · ${m.name}` : "?";
+  function nextMrNum() {
+    const y = new Date().getFullYear();
+    const used = S.mrs.map((m) => m.num).filter((n) => n.startsWith(`MR-${y}-`)).map((n) => +n.split("-")[2] || 0);
+    return `MR-${y}-${String((used.length ? Math.max(...used) : 0) + 1).padStart(3, "0")}`;
+  }
+
+  // ---------------- derived: allocation & reconciliation ----------------
+  // alloc[po] = { mrIds:[...], lines: { inv: { sub: null|inv, q: { mrId: qty } } }, at }
+  function mrReq(m) {
+    const by = new Map();
+    for (const l of m.lines) {
+      const k = l.inv; const r = by.get(k) || { inv: k, name: l.name, depts: new Set(), req: 0, notes: new Set() };
+      r.req += l.qty; r.depts.add(l.dept || "—"); if (l.note) r.notes.add(l.note); by.set(k, r);
+    }
+    return by;
+  }
+  function allocatedTo(mrId, inv, exceptPo) {
+    let t = 0;
+    for (const [po, a] of Object.entries(S.alloc)) {
+      if (po === exceptPo) continue;
+      for (const [lineInv, la] of Object.entries(a.lines)) {
+        const target = la.sub || lineInv;
+        if (target === inv && la.q[mrId]) t += +la.q[mrId] || 0;
+      }
+    }
+    return t;
+  }
+  function recon(m) {
+    const req = mrReq(m); const rows = [];
+    const onPo = new Map(); const extras = [];
+    for (const [po, a] of Object.entries(S.alloc)) {
+      if (!a.mrIds.includes(m.id)) continue;
+      const P = S.pos[po]; if (!P) continue;
+      for (const L of P.lines) {
+        const la = a.lines[L.inv]; if (!la) continue;
+        const q = +la.q[m.id] || 0;
+        const target = la.sub || L.inv;
+        if (q > 0) { const e = onPo.get(target) || []; e.push({ po, qty: q, rate: L.rate, std: L.std, sub: la.sub ? L.inv : null }); onPo.set(target, e); }
+        const allocAny = Object.values(la.q).reduce((s, v) => s + (+v || 0), 0);
+        if (allocAny < L.qty - 0.001 && !req.has(L.inv) && !la.sub) extras.push({ po, L, left: L.qty - allocAny });
+      }
+    }
+    for (const r of req.values()) {
+      const pos = onPo.get(r.inv) || []; const got = pos.reduce((s, p) => s + p.qty, 0); const d = got - r.req;
+      let st = "none"; if (got > 0) st = Math.abs(d) <= tol(r.req) ? "ok" : d < 0 ? "partial" : "over";
+      const rates = [...new Set(pos.map((p) => p.rate).filter((x) => x != null))];
+      const rc = []; if (rates.length > 1) rc.push("rates differ: " + rates.join(" / "));
+      for (const p of pos) if (p.std && p.rate && p.rate > p.std) rc.push(`${p.rate} above std ${p.std}`);
+      for (const p of pos) if (p.std && p.rate && p.rate < p.std) rc.push(`${p.rate} below std ${p.std}`);
+      rows.push({ ...r, dept: [...r.depts].join(" / "), got, diff: d, st, pos, rc: [...new Set(rc)], note: [...r.notes].join(" | ") });
+    }
+    for (const x of extras) rows.push({ inv: x.L.inv, name: x.L.name, dept: x.L.dept || "—", req: 0, got: x.left, diff: x.left, st: "extra", pos: [{ po: x.po, qty: x.left, rate: x.L.rate }], rc: [], note: "On the PO, not on this MR — link it to a substitute INV in Map" });
+    return rows;
+  }
+  const poValue = (P) => P.lines.reduce((s, l) => s + (l.qty || 0) * (l.rate || 0), 0);
+  function poMapState(po) {
+    const a = S.alloc[po]; const P = S.pos[po]; if (!a || !P) return "unmapped";
+    const left = P.lines.some((L) => { const la = a.lines[L.inv]; const g = la ? Object.values(la.q).reduce((s, v) => s + (+v || 0), 0) : 0; return g < L.qty - 0.001; });
+    return left ? "partly" : "mapped";
+  }
+
+  // ---------------- 1. requisition parsing ----------------
+  const QTY_H = ["balance to procure", "to procure", "pending", "final pending", "to purchase", "total component quantity", "required qty", "requirement", "qty", "quantity"];
+  const CODE_H = ["rm inv", "inv", "component icode", "icode", "item code", "rm code", "code"];
+  const NAME_H = ["rm item name", "item name", "component item name", "description", "item"];
+  const DEPT_H = ["rm department", "department", "dept", "category"];
+  function parseRequisition(wb, fileName) {
+    const out = [];
+    for (const sn of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null });
+      let hi = -1, qcols = [];
+      for (let i = 0; i < Math.min(rows.length, 15); i++) {
+        const h = (rows[i] || []).map(normH);
+        const q = h.map((x, j) => QTY_H.includes(x) ? j : -1).filter((j) => j >= 0);
+        if (q.length && h.some((x) => CODE_H.includes(x))) { hi = i; qcols = q; break; }
+      }
+      if (hi < 0) continue;
+      const H = rows[hi].map(normH);
+      const col = (al) => { for (const a of al) { const j = H.indexOf(a); if (j >= 0) return j; } return -1; };
+      const cCode = col(CODE_H), cName = col(NAME_H), cDept = col(DEPT_H), cColor = col(["color", "colour"]);
+      const used = new Set([cCode, cName, cDept, cColor, ...qcols]);
+      const noteCols = H.map((x, j) => j).filter((j) => !used.has(j));
+      // month label for each qty column: the nearest text above it
+      const months = qcols.map((j) => {
+        for (let k = hi - 1; k >= Math.max(0, hi - 4); k--) { const v = rows[k] && rows[k][j]; if (v != null && typeof v === "string" && v.trim()) return v.trim(); }
+        return qcols.length > 1 ? String(rows[hi][j]) : guessMonth(fileName) || "—";
+      });
+      qcols.forEach((j, qi) => {
+        const lines = [];
+        for (const r of rows.slice(hi + 1)) {
+          if (!r) continue; const code = String(r[cCode] ?? "").trim().toUpperCase();
+          if (!INV_RE.test(code)) continue; const q = num(r[j]); if (!q || q <= 0) continue;
+          const note = noteCols.map((k) => r[k]).filter((v) => v != null && String(v).trim() !== "" && typeof v !== "number").map((v) => String(v).trim()).join(" | ");
+          lines.push({ inv: code, name: cName >= 0 ? String(r[cName] ?? "").replace(/\s+/g, " ").trim() : "", dept: cDept >= 0 ? String(r[cDept] ?? "").trim() : "", color: cColor >= 0 ? String(r[cColor] ?? "").trim() : "", qty: q, note });
+        }
+        if (lines.length) out.push({ sheet: sn, month: months[qi], lines });
+      });
+    }
+    return out;
+  }
+  function guessMonth(s) { const m = String(s).toLowerCase().match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/); return m ? m[0][0].toUpperCase() + m[0].slice(1, 3) : ""; }
+
+  let pendingReq = null;
+  function showReqPreview() {
+    const p = $("#reqPreview");
+    if (!pendingReq) { p.hidden = true; return; }
+    p.hidden = false;
+    let n = nextMrNum(); const base = +n.split("-")[2]; const y = n.split("-")[1];
+    p.innerHTML = `<div class="panel-head"><div><h2>New MRs from ${esc(pendingReq.file)}</h2><div class="muted small">${pendingReq.parts.length} month column(s) found. Rename before creating, or later.</div></div>
+      <div class="row"><button class="btn" data-act="req-cancel">Cancel</button><button class="btn primary" data-act="req-create">Create ${pendingReq.parts.length} MR(s)</button></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Create</th><th>MR number</th><th>Your name</th><th>Month</th><th class="r">INV lines</th><th class="r">Total qty</th></tr></thead><tbody>
+      ${pendingReq.parts.map((pt, i) => `<tr><td><input type="checkbox" data-pick="${i}" ${pt.on ? "checked" : ""}></td>
+        <td><input class="input sm mono" data-pnum="${i}" value="${esc(pt.num || `MR-${y}-${String(base + i).padStart(3, "0")}`)}" style="width:130px"></td>
+        <td><input class="input sm" data-pname="${i}" value="${esc(pt.name)}" style="min-width:260px"></td>
+        <td>${esc(pt.month)}</td><td class="r num">${pt.lines.length}</td><td class="r num">${fmt(pt.lines.reduce((s, l) => s + l.qty, 0), 0)}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  }
+  function renderReq() {
+    $("#reqRows").innerHTML = S.mrs.length ? S.mrs.map((m) => {
+      const req = mrReq(m); const rec = recon(m).filter((r) => r.st !== "extra");
+      const cov = rec.filter((r) => r.st === "ok" || r.st === "over").length;
+      const pos = Object.entries(S.alloc).filter(([, a]) => a.mrIds.includes(m.id)).map(([p]) => p);
+      return `<tr><td><input class="inline-edit mono" data-mnum="${m.id}" value="${esc(m.num)}" style="min-width:120px"></td>
+        <td><input class="inline-edit" data-mname="${m.id}" value="${esc(m.name)}" style="min-width:240px"></td>
+        <td>${esc(m.month)}</td><td class="r num">${req.size}</td><td class="r num">${fmt(m.lines.reduce((s, l) => s + l.qty, 0), 0)}</td>
+        <td class="wrap small">${pos.length ? pos.map((p) => `<span class="mono">${esc(p)}</span>`).join(", ") : '<span class="muted">none yet</span>'}</td>
+        <td class="r num">${req.size ? Math.round(cov / req.size * 100) : 0}%</td>
+        <td class="small muted trunc" title="${esc(m.file)}">${esc(m.file)}</td>
+        <td><button class="btn ghost sm" data-act="mr-view" data-id="${m.id}">Open</button> <button class="btn ghost sm" data-act="mr-del" data-id="${m.id}">Delete</button></td></tr>`;
+    }).join("") : `<tr><td colspan="9" class="empty">No requisitions yet. Upload a requisition sheet above.</td></tr>`;
+  }
+
+  // ---------------- 2. PO register + PDF ----------------
+  const REG = { po: ["po number"], date: ["po creation date", "order date"], plan: ["plan no"], remarks: ["po remarks"], deliv: ["delivery date"], supplier: ["party name", "supplier", "vendor"], inv: ["item code"], dept: ["item department"], name: ["item name"], std: ["standard rate"], rate: ["item rate", "rate"], uom: ["uom"], qty: ["order qty"], recv: ["po received qty"], cancel: ["po cancelled qty"], pend: ["po pending qty"], status: ["po status"], site: ["site name"], by: ["created by"] };
+  let regCache = null; // {pos:{po:{...}}}
+  function parseRegister(wb) {
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+    const hi = rows.slice(0, 30).findIndex((r) => (r || []).map(normH).includes("po number"));
+    if (hi < 0) return null;
+    const H = rows[hi].map(normH); const c = {};
+    for (const [k, al] of Object.entries(REG)) c[k] = H.findIndex((h) => al.includes(h));
+    const pos = {};
+    for (const r of rows.slice(hi + 1)) {
+      if (!r) continue; const po = String(r[c.po] ?? "").trim().toUpperCase(); if (!PO_RE.test(po)) continue;
+      const inv = String(r[c.inv] ?? "").trim().toUpperCase(); if (!inv) continue;
+      const P = pos[po] || (pos[po] = { po, date: iso(r[c.date]), plan: String(r[c.plan] ?? "").trim(), remarks: String(r[c.remarks] ?? "").trim(), deliv: iso(r[c.deliv]), supplier: String(r[c.supplier] ?? "").trim(), site: String(r[c.site] ?? "").trim(), by: String(r[c.by] ?? "").replace(/\s*\[\d+\]$/, "").trim(), status: String(r[c.status] ?? "").trim(), lines: [] });
+      P.lines.push({ inv, name: String(r[c.name] ?? "").trim(), dept: String(r[c.dept] ?? "").trim(), uom: String(r[c.uom] ?? "").toUpperCase(), qty: num(r[c.qty]) || 0, rate: num(r[c.rate]), std: num(r[c.std]), recv: num(r[c.recv]) || 0, pend: num(r[c.pend]) });
+    }
+    return pos;
+  }
+  let regView = { q: "", from: "", to: "", onlyNew: true, sel: new Set() };
+  function renderRegPicker() {
+    const p = $("#regPicker");
+    if (!regCache) { p.hidden = true; return; }
+    p.hidden = false;
+    const all = Object.values(regCache.pos);
+    const q = regView.q.toLowerCase();
+    const list = all.filter((P) => (!regView.onlyNew || !S.pos[P.po]) && (!regView.from || P.date >= regView.from) && (!regView.to || P.date <= regView.to) &&
+      (!q || `${P.po} ${P.supplier} ${P.plan} ${P.remarks} ${P.by} ${P.lines.map((l) => l.inv).join(" ")}`.toLowerCase().includes(q)))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.po.localeCompare(a.po));
+    const shown = list.slice(0, 300);
+    const refresh = all.filter((P) => S.pos[P.po]).length;
+    p.innerHTML = `<div class="panel-head"><div><h2>PO register: ${esc(regCache.file)}</h2><div class="muted small">${fmt(all.length, 0)} POs in the file · ${refresh} already in your inbox (their qty / received figures will refresh)</div></div>
+      <div class="row"><button class="btn" data-act="reg-close">Close</button><button class="btn" data-act="reg-refresh" ${refresh ? "" : "disabled"}>Refresh ${refresh} existing</button><button class="btn primary" data-act="reg-add" ${regView.sel.size ? "" : "disabled"}>Add ${regView.sel.size} selected</button></div></div>
+      <div class="row" style="margin-bottom:10px">
+        <input class="input" id="rgQ" type="search" placeholder="PO number, supplier, INV, remark, created by" value="${esc(regView.q)}" style="min-width:280px">
+        <span class="small muted">Created</span><input class="input" type="date" id="rgFrom" value="${regView.from}"><span class="small muted">to</span><input class="input" type="date" id="rgTo" value="${regView.to}">
+        <label class="small"><input type="checkbox" id="rgNew" ${regView.onlyNew ? "checked" : ""}> Only POs not in inbox</label>
+        <button class="btn sm" data-act="reg-selall">Select all ${list.length > 300 ? "first 300" : list.length}</button><button class="btn sm ghost" data-act="reg-selnone">Clear</button>
+      </div>
+      <div class="table-wrap" style="max-height:46vh"><table><thead><tr><th></th><th>PO number</th><th>Created</th><th>Supplier</th><th>Plan / remarks</th><th>Created by</th><th class="r">Lines</th><th class="r">Value</th><th>Status</th></tr></thead><tbody>
+      ${shown.map((P) => `<tr><td><input type="checkbox" data-rsel="${esc(P.po)}" ${regView.sel.has(P.po) ? "checked" : ""}></td><td class="mono">${esc(P.po)}</td><td>${fdate(P.date)}</td><td class="trunc">${esc(P.supplier)}</td>
+        <td class="trunc small" title="${esc(P.plan + " | " + P.remarks)}">${esc([P.plan, P.remarks].filter(Boolean).join(" | ") || "—")}</td><td class="small">${esc(P.by)}</td><td class="r num">${P.lines.length}</td><td class="r num">${money(poValue(P))}</td><td class="small">${esc(P.status)}</td></tr>`).join("") || `<tr><td colspan="9" class="empty">No POs match. Widen the dates or untick "Only POs not in inbox".</td></tr>`}
+      </tbody></table></div>${list.length > 300 ? `<div class="small muted" style="margin-top:6px">Showing 300 of ${fmt(list.length, 0)} — narrow with search or dates.</div>` : ""}`;
+  }
+
+  async function readPdf(file) {
+    const data = new Uint8Array(await file.arrayBuffer());
+    const doc = await pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
+    const lines = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const tc = await (await doc.getPage(i)).getTextContent();
+      const byY = new Map();
+      for (const it of tc.items) { const y = Math.round(it.transform[5]); const x = it.transform[4]; (byY.get(y) || byY.set(y, []).get(y)).push({ x, s: it.str }); }
+      [...byY.entries()].sort((a, b) => b[0] - a[0]).forEach(([, its]) => lines.push(its.sort((a, b) => a.x - b.x).map((t) => t.s).join(" ").replace(/\s+/g, " ").trim()));
+    }
+    return lines.filter(Boolean);
+  }
+  function pdfToPo(file, lines) {
+    const text = lines.join("\n");
+    const m = text.match(PO_RE); const poNo = m ? m[0].toUpperCase().replace(/^P\.?O\.?/, "PO") : "";
+    const known = poNo && (regCache?.pos[poNo] || S.pos[poNo]);
+    if (known) return { po: poNo, from: "register", P: JSON.parse(JSON.stringify(known)), raw: lines };
+    // Heuristic line reading: an INV code followed by numbers. Qty and rate are guessed; you correct them.
+    const items = [];
+    for (const ln of lines) {
+      const cm = ln.match(/\b(INV\d{3,})\b/i); if (!cm) continue;
+      const after = ln.slice(ln.indexOf(cm[1]) + cm[1].length);
+      const nums = (after.match(/\d[\d,]*\.?\d*/g) || []).map((s) => num(s)).filter((n) => n != null);
+      const name = after.replace(/\d[\d,]*\.?\d*/g, " ").replace(/\b(MTR|PCS|KG|NOS|SET|YDS|ROLL)\b/gi, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+      const uom = (after.match(/\b(MTR|PCS|KG|NOS|SET|YDS|ROLL)\b/i) || [""])[0].toUpperCase();
+      const big = nums.filter((n) => n > 0);
+      // assume: qty is the first number ≥ 1 after the name, rate the next one
+      items.push({ inv: cm[1].toUpperCase(), name, uom, qty: big[0] || 0, rate: big[1] ?? null, std: null, recv: 0, pend: null });
+    }
+    const sup = (lines.find((l) => /^(to|supplier|vendor|party)\b/i.test(l)) || "").replace(/^(to|supplier|vendor|party)\s*[:\-]?\s*/i, "");
+    const d = (text.match(/\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b/) || [])[1];
+    return { po: poNo, from: "pdf", P: { po: poNo, date: iso(d), plan: "", remarks: "", deliv: "", supplier: sup.slice(0, 60), site: "", by: "", status: "", lines: items }, raw: lines };
+  }
+  let pdfQueue = []; // [{file, po, from, P, raw}]
+  function renderPdfReview() {
+    const p = $("#pdfReview");
+    if (!pdfQueue.length) { p.hidden = true; return; }
+    p.hidden = false;
+    p.innerHTML = `<div class="panel-head"><div><h2>Check PDFs before adding (${pdfQueue.length})</h2><div class="muted small">Lines come from the register when the PO number is found there; otherwise they are read from the PDF text — correct anything that is off.</div></div>
+      <div class="row"><button class="btn" data-act="pdf-cancel">Discard all</button><button class="btn primary" data-act="pdf-add">Add to inbox</button></div></div>
+      <div class="stack">${pdfQueue.map((q, i) => `<div class="panel" style="padding:12px">
+        <div class="row" style="justify-content:space-between"><div class="row"><b class="small">${esc(q.file)}</b>
+          ${q.from === "register" ? '<span class="chip good">lines from register</span>' : q.P.lines.length ? '<span class="chip warn">read from PDF — check</span>' : '<span class="chip crit">no lines found</span>'}</div>
+          <button class="btn ghost sm" data-act="pdf-drop" data-i="${i}">Remove</button></div>
+        <div class="row" style="margin:8px 0">
+          <span class="label">PO number</span><input class="input sm mono" data-pq="${i}" data-f="po" value="${esc(q.P.po)}" style="width:210px">
+          <span class="label">Supplier</span><input class="input sm" data-pq="${i}" data-f="supplier" value="${esc(q.P.supplier)}" style="width:220px">
+          <span class="label">Date</span><input class="input sm" type="date" data-pq="${i}" data-f="date" value="${esc(q.P.date)}">
+          <button class="btn sm" data-act="pdf-lookup" data-i="${i}" ${regCache ? "" : "disabled title='Load a PO register first'"}>Fill lines from register</button>
+        </div>
+        <div class="table-wrap" style="max-height:240px"><table><thead><tr><th>INV</th><th>Item</th><th>UOM</th><th class="r">Qty</th><th class="r">Rate</th><th></th></tr></thead><tbody>
+          ${q.P.lines.map((l, j) => `<tr><td><input class="input sm mono" data-pl="${i}:${j}:inv" value="${esc(l.inv)}" style="width:110px"></td><td class="trunc">${esc(l.name)}</td><td>${esc(l.uom)}</td>
+            <td class="r"><input class="input sm qty" data-pl="${i}:${j}:qty" value="${l.qty ?? ""}"></td><td class="r"><input class="input sm qty" data-pl="${i}:${j}:rate" value="${l.rate ?? ""}"></td>
+            <td><button class="btn ghost sm" data-act="pdf-line-del" data-i="${i}" data-j="${j}">✕</button></td></tr>`).join("") || `<tr><td colspan="6" class="empty">No INV lines recognised.</td></tr>`}
+        </tbody></table></div>
+        <div class="row" style="margin-top:6px"><button class="btn sm" data-act="pdf-line-add" data-i="${i}">+ Add line</button>
+        <details class="small muted"><summary>Text read from PDF (${q.raw.length} lines)</summary><pre class="mono small" style="white-space:pre-wrap;max-height:200px;overflow:auto">${esc(q.raw.join("\n"))}</pre></details></div>
+      </div>`).join("")}</div>`;
+  }
+
+  let poSel = new Set();
+  function renderInbox() {
+    const q = $("#poSearch").value.trim().toLowerCase(); const f = $("#poFilter").value;
+    const list = Object.values(S.pos).filter((P) => {
+      const st = poMapState(P.po);
+      if (f === "unmapped" && st === "mapped") return false;
+      if (f === "mapped" && st !== "mapped") return false;
+      if (f === "pdf" && !P.pdf) return false;
+      return !q || `${P.po} ${P.supplier} ${P.plan} ${P.remarks} ${P.lines.map((l) => l.inv).join(" ")}`.toLowerCase().includes(q);
+    }).sort((a, b) => (b.date || "").localeCompare(a.date || "") || b.po.localeCompare(a.po));
+    $("#poRows").innerHTML = list.length ? list.map((P) => {
+      const st = poMapState(P.po); const a = S.alloc[P.po];
+      return `<tr><td><input type="checkbox" data-psel="${esc(P.po)}" ${poSel.has(P.po) ? "checked" : ""}></td><td class="mono">${esc(P.po)}</td><td>${fdate(P.date)}</td><td class="trunc">${esc(P.supplier)}</td>
+        <td class="trunc small" title="${esc(P.plan + " | " + P.remarks)}">${esc([P.plan, P.remarks].filter(Boolean).join(" | ") || "—")}</td>
+        <td class="r num">${P.lines.length}</td><td class="r num">${money(poValue(P))}</td>
+        <td class="small">${P.reg ? '<span class="chip">register</span>' : ""} ${P.pdf ? `<span class="chip info" title="${esc(P.pdf)}">PDF</span>` : ""}</td>
+        <td class="small">${a ? a.mrIds.map((id) => esc(mrLabel(mrById(id)))).join("<br>") : ""} ${st === "unmapped" ? '<span class="pill s-unmapped">Unmapped</span>' : st === "partly" ? '<span class="pill s-partial">Part-mapped</span>' : ""}</td>
+        <td><button class="btn sm" data-act="po-map" data-po="${esc(P.po)}">${a ? "Edit map" : "Map"}</button> <button class="btn ghost sm" data-act="po-del" data-po="${esc(P.po)}">Remove</button></td></tr>`;
+    }).join("") : `<tr><td colspan="10" class="empty">No POs yet. Load the PO register or drop PO PDFs above.</td></tr>`;
+    $("#bulkMapBtn").disabled = !poSel.size;
+    $("#bulkMapBtn").textContent = poSel.size ? `Map ${poSel.size} selected →` : "Map selected →";
+  }
+
+  // ---------------- 3. MAP ----------------
+  let cur = null;       // current PO number in Map
+  let draft = null;     // {mrIds:[], lines:{inv:{sub, q:{}}}}
+  let bulk = null;      // [po,...] when mapping several at once
+  let mrQuery = "";
+  const ruleKey = (P) => normH([P.plan, P.remarks].filter(Boolean).join(" ")) || null;
+  function suggestions(P) {
+    const invs = new Set(P.lines.map((l) => l.inv));
+    const sc = S.mrs.map((m) => {
+      const req = mrReq(m); let hit = 0, open = 0;
+      for (const i of invs) if (req.has(i)) { hit++; if (req.get(i).req - allocatedTo(m.id, i, P.po) > tol(req.get(i).req)) open++; }
+      return { m, hit, open };
+    }).filter((x) => x.hit).sort((a, b) => b.open - a.open || b.hit - a.hit);
+    const rk = ruleKey(P); const ruled = rk && S.rules[rk] ? S.rules[rk] : [];
+    return { list: sc.slice(0, 4), ruled, total: invs.size };
+  }
+  function autoAllocate(P, mrIds) {
+    const order = mrIds.map(mrById).filter(Boolean).sort((a, b) => a.num.localeCompare(b.num));
+    const lines = {};
+    for (const L of P.lines) {
+      const cands = order.filter((m) => mrReq(m).has(L.inv));
+      const q = {};
+      if (cands.length === 1) q[cands[0].id] = L.qty;
+      else if (cands.length > 1) {
+        let left = L.qty;
+        cands.forEach((m, i) => {
+          if (i === cands.length - 1) { q[m.id] = round3(left); return; }
+          const need = Math.max(0, mrReq(m).get(L.inv).req - allocatedTo(m.id, L.inv, P.po));
+          const g = Math.min(left, need); q[m.id] = round3(g); left -= g;
+        });
+      }
+      lines[L.inv] = { sub: null, q };
+    }
+    return { mrIds: order.map((m) => m.id), lines };
+  }
+  const round3 = (n) => Math.round(n * 1000) / 1000;
+  function openMap(po) {
+    cur = po; bulk = null; mrQuery = "";
+    const P = S.pos[po];
+    draft = S.alloc[po] ? JSON.parse(JSON.stringify(S.alloc[po])) : { mrIds: [], lines: {} };
+    if (!S.alloc[po]) { const s = suggestions(P); const pre = s.ruled.length ? s.ruled : s.list.length ? [s.list[0].m.id] : []; if (pre.length) draft = autoAllocate(P, pre); }
+    show("map");
+  }
+  function renderMapList() {
+    const f = $("#mapFilter").value;
+    const list = Object.values(S.pos).filter((P) => f === "all" || poMapState(P.po) !== "mapped").sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    $("#mapList").innerHTML = list.length ? list.map((P) => { const st = poMapState(P.po); return `<button class="po-item" data-act="map-pick" data-po="${esc(P.po)}" aria-current="${P.po === cur}">
+      <span class="top"><span class="mono small">${esc(P.po)}</span>${st === "mapped" ? '<span class="pill s-mapped">Mapped</span>' : st === "partly" ? '<span class="pill s-partial">Part</span>' : '<span class="pill s-unmapped">Unmapped</span>'}</span>
+      <span class="small">${esc(P.supplier)} · ${P.lines.length} lines · ${money(poValue(P))}</span>
+      <span class="small muted trunc">${esc([P.plan, P.remarks].filter(Boolean).join(" | ") || "no remarks")}</span></button>`; }).join("") : `<div class="empty">Nothing to map. Add POs in the PO inbox.</div>`;
+  }
+  function renderMapPane() {
+    const pane = $("#mapPane");
+    if (bulk) return renderBulk(pane);
+    const P = cur && S.pos[cur];
+    if (!P) { pane.innerHTML = `<div class="empty">Pick a PO on the left to map it to one or more requisitions.</div>`; return; }
+    if (!S.mrs.length) { pane.innerHTML = `<div class="empty">Upload a requisition first (tab 1).</div>`; return; }
+    const sg = suggestions(P);
+    const mq = mrQuery.toLowerCase();
+    const mrsShown = S.mrs.filter((m) => !mq || `${m.num} ${m.name} ${m.month}`.toLowerCase().includes(mq));
+    const chosen = draft.mrIds.map(mrById).filter(Boolean);
+    const reqs = new Map(chosen.map((m) => [m.id, mrReq(m)]));
+    const subOptions = chosen.flatMap((m) => [...reqs.get(m.id).values()].map((r) => ({ inv: r.inv, label: `${r.inv} ${r.name}` })));
+    const uniqSubs = [...new Map(subOptions.map((o) => [o.inv, o])).values()].sort((a, b) => a.inv.localeCompare(b.inv));
+    let unalloc = 0;
+    const lineRows = P.lines.map((L) => {
+      const la = draft.lines[L.inv] || (draft.lines[L.inv] = { sub: null, q: {} });
+      const got = Object.values(la.q).reduce((s, v) => s + (+v || 0), 0); const left = round3(L.qty - got); if (left > 0.001) unalloc++;
+      const target = la.sub || L.inv;
+      const onAny = chosen.some((m) => reqs.get(m.id).has(L.inv));
+      return `<tr><td class="mono">${esc(L.inv)}${la.sub ? `<div class="small muted">→ counts as ${esc(la.sub)}</div>` : ""}</td><td class="trunc" title="${esc(L.name)}">${esc(L.name)}</td>
+        <td class="r num">${fmt(L.qty, 3)}</td><td class="r num">${L.rate ?? "—"}</td>
+        ${chosen.map((m) => { const has = reqs.get(m.id).has(target); const need = has ? reqs.get(m.id).get(target).req - allocatedTo(m.id, target, P.po) : 0;
+          return `<td class="r">${has ? `<input class="input sm qty" data-aq="${esc(L.inv)}|${m.id}" value="${la.q[m.id] ?? ""}"><div class="small muted">needs ${fmt(Math.max(0, need), 1)}</div>` : '<span class="muted small">not on MR</span>'}</td>`; }).join("")}
+        <td class="r num ${left > 0.001 ? "" : "muted"}">${left > 0.001 ? `<b>${fmt(left, 3)}</b>` : "0"}</td>
+        <td>${!onAny || la.sub ? `<select class="input sm" data-sub="${esc(L.inv)}" style="max-width:220px"><option value="">${onAny ? "—" : "Not on chosen MRs · link as substitute…"}</option>${uniqSubs.map((o) => `<option value="${esc(o.inv)}" ${la.sub === o.inv ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select>` : ""}</td></tr>`;
+    }).join("");
+    pane.innerHTML = `<div class="panel-head"><div><h2 class="mono">${esc(P.po)}</h2><div class="muted small">${esc(P.supplier)} · ${fdate(P.date)} · ${P.lines.length} lines · ${money(poValue(P))}${P.pdf ? " · PDF: " + esc(P.pdf) : ""}</div>
+        <div class="small muted">ERP plan / remarks: ${esc([P.plan, P.remarks].filter(Boolean).join(" | ") || "none")}</div></div>
+        <div class="row">${S.alloc[P.po] ? '<button class="btn danger" data-act="map-unmap">Unmap</button>' : ""}<button class="btn primary" data-act="map-save" ${chosen.length ? "" : "disabled"}>Save mapping</button></div></div>
+      <div class="stack">
+        <div><span class="label">Suggested</span><div class="sugg" style="margin-top:6px">
+          ${sg.ruled.length ? `<button data-act="sugg" data-ids="${sg.ruled.join(",")}" class="${sameSet(sg.ruled, draft.mrIds) ? "on" : ""}"><b class="small">Same remark as before</b><span class="small muted">${esc(sg.ruled.map((id) => mrLabel(mrById(id))).join(" + "))}</span></button>` : ""}
+          ${sg.list.map((s) => `<button data-act="sugg" data-ids="${s.m.id}" class="${sameSet([s.m.id], draft.mrIds) ? "on" : ""}"><b class="small">${esc(s.m.num)} · ${esc(s.m.name)}</b><span class="small muted">${s.hit} of ${sg.total} INVs on this MR · ${s.open} still open</span></button>`).join("") || '<span class="small muted">No MR contains these INVs.</span>'}
+        </div></div>
+        <div><div class="row" style="justify-content:space-between"><span class="label">Map to requisition(s) — pick one or more</span><input class="input sm" id="mrQ" type="search" placeholder="Type MR number or your name" value="${esc(mrQuery)}"></div>
+          <div class="mr-pick" style="margin-top:6px">${mrsShown.map((m) => `<label><input type="checkbox" data-mrpick="${m.id}" ${draft.mrIds.includes(m.id) ? "checked" : ""}><span class="mono small">${esc(m.num)}</span><span>${esc(m.name)}</span><span class="small muted">${esc(m.month)}</span></label>`).join("") || '<span class="small muted">No MR matches.</span>'}</div>
+          <div class="row" style="margin-top:6px"><button class="btn sm" data-act="map-auto" ${chosen.length ? "" : "disabled"}>Re-split by need</button><span class="small muted">Shared INVs are split oldest MR first, by what each still needs; the rest goes to the last one. Edit any number.</span></div></div>
+        ${chosen.length ? `<div class="table-wrap" style="max-height:52vh"><table><thead><tr><th>INV</th><th>Item</th><th class="r">PO qty</th><th class="r">Rate</th>${chosen.map((m) => `<th class="r">${esc(m.num)}<div style="text-transform:none;letter-spacing:0" class="trunc">${esc(m.name)}</div></th>`).join("")}<th class="r">Unallocated</th><th>Substitute</th></tr></thead><tbody>${lineRows}</tbody></table></div>
+          <div class="small ${unalloc ? "" : "muted"}">${unalloc ? `${unalloc} line(s) not fully allocated — they will show as <b>Extra</b> on the MR view until linked or allocated.` : "Every PO line is allocated."}</div>
+          <label class="small"><input type="checkbox" id="remember" ${ruleKey(P) ? "checked" : "disabled"}> Next time a PO has the remark “${esc([P.plan, P.remarks].filter(Boolean).join(" | ") || "—")}”, suggest these MRs</label>` : ""}
+      </div>`;
+  }
+  const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+  function renderBulk(pane) {
+    const mq = mrQuery.toLowerCase();
+    pane.innerHTML = `<div class="panel-head"><div><h2>Map ${bulk.length} POs at once</h2><div class="muted small">${bulk.map(esc).join(", ")}</div></div><div class="row"><button class="btn" data-act="bulk-cancel">Cancel</button></div></div>
+      <div class="stack"><input class="input" id="mrQ" type="search" placeholder="Type MR number or your name" value="${esc(mrQuery)}">
+      <div class="mr-pick">${S.mrs.filter((m) => !mq || `${m.num} ${m.name} ${m.month}`.toLowerCase().includes(mq)).map((m) => `<label><input type="checkbox" data-bulkpick="${m.id}"><span class="mono small">${esc(m.num)}</span><span>${esc(m.name)}</span><span class="small muted">${esc(m.month)}</span></label>`).join("")}</div>
+      <div class="row"><button class="btn primary" data-act="bulk-go">Map all to the ticked MR(s)</button><span class="small muted">Each PO is split by INV and by need, exactly as one-by-one. Open any PO afterwards to adjust.</span></div></div>`;
+  }
+
+  // ---------------- 4. MR VIEW ----------------
+  let viewId = null, viewSt = "";
+  const ST = { ok: ["On target", "s-ok", "k-ok"], partial: ["Short", "s-partial", "k-partial"], over: ["Excess", "s-over", "k-over"], none: ["No PO", "s-none", ""], extra: ["Extra (PO line not on MR)", "s-extra", "k-extra"] };
+  function renderView() {
+    const sel = $("#viewMr");
+    if (!viewId || !mrById(viewId)) viewId = S.mrs[0]?.id || null;
+    sel.innerHTML = S.mrs.map((m) => `<option value="${m.id}" ${m.id === viewId ? "selected" : ""}>${esc(mrLabel(m))} (${esc(m.month)})</option>`).join("") || "<option>No requisitions yet</option>";
+    const m = mrById(viewId);
+    if (!m) { $("#viewKpis").innerHTML = ""; $("#viewRows").innerHTML = `<tr><td colspan="10" class="empty">Upload a requisition first.</td></tr>`; return; }
+    const rows = recon(m); const c = { ok: 0, partial: 0, over: 0, none: 0, extra: 0 }; rows.forEach((r) => c[r.st]++);
+    const pos = Object.entries(S.alloc).filter(([, a]) => a.mrIds.includes(m.id)).map(([p]) => p);
+    const val = rows.reduce((s, r) => s + r.pos.reduce((t, p) => t + p.qty * (p.rate || 0), 0), 0);
+    $("#viewKpis").innerHTML = [["", "All lines", rows.length, `${pos.length} PO(s) mapped`], ...Object.entries(ST).map(([k, v]) => [k, v[0], c[k], k === "none" ? "nothing ordered yet" : k === "extra" ? "needs a link" : "INVs", v[2]]), ["v", "Value on POs", money(val), "qty × rate, before GST"]]
+      .map(([k, l, v, s, cls]) => `<div class="kpi ${cls || ""} ${k && k !== "v" ? "clickable" : k === "" ? "clickable" : ""} ${viewSt === k && k !== "v" ? "on" : ""}" ${k !== "v" ? `data-act="view-st" data-st="${k}"` : ""}><span class="label">${l}</span><span class="value">${v}</span><span class="sub">${s}</span></div>`).join("");
+    const q = $("#viewSearch").value.trim().toLowerCase();
+    const order = { none: 0, partial: 1, over: 2, extra: 3, ok: 4 };
+    const shown = rows.filter((r) => (!viewSt || r.st === viewSt) && (!q || `${r.inv} ${r.name}`.toLowerCase().includes(q))).sort((a, b) => order[a.st] - order[b.st] || a.inv.localeCompare(b.inv));
+    $("#viewRows").innerHTML = shown.map((r) => `<tr><td class="small">${esc(r.dept)}</td><td class="mono">${esc(r.inv)}</td><td class="trunc" title="${esc(r.name)}">${esc(r.name)}</td>
+      <td class="r num">${fmt(r.req, 3)}</td><td class="r num">${fmt(r.got, 3)}</td><td class="r num">${r.st === "none" ? "—" : (r.diff > 0 ? "+" : "") + fmt(r.diff, 3)}</td>
+      <td><span class="pill ${ST[r.st][1]}">${ST[r.st][0]}</span></td>
+      <td class="small">${r.pos.map((p) => `<span class="mono">${esc(p.po)}</span>: ${fmt(p.qty, 3)} @ ${p.rate ?? "—"}${p.sub ? ` <span class="chip info">via ${esc(p.sub)}</span>` : ""}`).join("<br>") || "—"}</td>
+      <td class="small">${r.rc.map((x) => `<span class="chip ${/above|differ/.test(x) ? "warn" : ""}">${esc(x)}</span>`).join(" ")}</td>
+      <td class="wrap small muted">${esc(r.note)}</td></tr>`).join("") || `<tr><td colspan="10" class="empty">No lines${viewSt ? " with this status" : ""}.</td></tr>`;
+  }
+  function viewTable() {
+    const m = mrById(viewId); if (!m) return [];
+    return recon(m).map((r) => ({ "MR number": m.num, "MR name": m.name, Department: r.dept, INV: r.inv, Item: r.name, Required: round3(r.req), "On POs": round3(r.got), Diff: round3(r.diff), Status: ST[r.st][0], POs: r.pos.map((p) => `${p.po}: ${p.qty} @ ${p.rate ?? ""}`).join("; "), "Rate check": r.rc.join("; "), "Requisition notes": r.note }));
+  }
+
+  // ---------------- tabs & render ----------------
+  let tab = "req";
+  function show(t) { tab = t; document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== t)); document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === t)); try { localStorage.setItem(KEY + ".tab", t); } catch (e) {} render(); }
+  function render() {
+    $("#c-req").textContent = S.mrs.length; $("#c-inbox").textContent = Object.keys(S.pos).length;
+    const un = Object.keys(S.pos).filter((p) => poMapState(p) !== "mapped").length; $("#c-map").textContent = un; $("#c-map").className = "count" + (un ? " hot" : "");
+    if (tab === "req") { renderReq(); showReqPreview(); }
+    if (tab === "inbox") { renderInbox(); renderRegPicker(); renderPdfReview(); }
+    if (tab === "map") { renderMapList(); renderMapPane(); }
+    if (tab === "view") renderView();
+  }
+
+  // ---------------- events ----------------
+  async function readWb(file) { return XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: "array", cellDates: true }); }
+  function wireDrop(id, input, handler) {
+    const d = $(id);
+    ["dragenter", "dragover"].forEach((e) => d.addEventListener(e, (ev) => { ev.preventDefault(); d.classList.add("over"); }));
+    ["dragleave", "drop"].forEach((e) => d.addEventListener(e, (ev) => { ev.preventDefault(); d.classList.remove("over"); }));
+    d.addEventListener("drop", (ev) => ev.dataTransfer.files.length && handler([...ev.dataTransfer.files]));
+    $(input).addEventListener("change", (ev) => { const f = [...ev.target.files]; ev.target.value = ""; if (f.length) handler(f); });
+  }
+  wireDrop("#reqDrop", "#reqFile", async ([f]) => {
+    try {
+      const parts = parseRequisition(await readWb(f), f.name);
+      if (!parts.length) return toast("No INV + quantity columns found. Expected e.g. 'RM INV' and 'Balance To Procure'.");
+      const n = nextMrNum(); const base = +n.split("-")[2]; const y = n.split("-")[1];
+      pendingReq = { file: f.name, parts: parts.map((p, i) => ({ ...p, on: true, num: `MR-${y}-${String(base + i).padStart(3, "0")}`, name: `${p.month} – ${f.name.replace(/\.[^.]+$/, "").replace(/^[0-9a-f]{8}-/, "")}` })) };
+      render();
+    } catch (e) { console.error(e); toast("Could not read that file."); }
+  });
+  wireDrop("#regDrop", "#regFile", async ([f]) => {
+    toast("Reading register… large files take a few seconds");
+    setTimeout(async () => {
+      try {
+        const pos = parseRegister(await readWb(f));
+        if (!pos) return toast("No 'PO Number' column found in this file.");
+        regCache = { file: f.name, pos }; regView.sel = new Set(); render();
+      } catch (e) { console.error(e); toast("Could not read that register."); }
+    }, 30);
+  });
+  wireDrop("#pdfDrop", "#pdfFile", async (files) => {
+    for (const f of files) {
+      if (!/\.pdf$/i.test(f.name)) continue;
+      try { const lines = await readPdf(f); const r = pdfToPo(f.name, lines); pdfQueue.push({ file: f.name, ...r }); }
+      catch (e) { console.error(e); pdfQueue.push({ file: f.name, from: "pdf", po: "", P: { po: "", date: "", plan: "", remarks: "", supplier: "", lines: [] }, raw: ["Could not read this PDF: " + e.message] }); }
+    }
+    render();
+  });
+
+  document.addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.id === "rgQ") { regView.q = t.value; renderRegPicker(); const el = $("#rgQ"); el.focus(); el.setSelectionRange(t.value.length, t.value.length); }
+    if (t.id === "mrQ") { mrQuery = t.value; renderMapPane(); const el = $("#mrQ"); el.focus(); el.setSelectionRange(t.value.length, t.value.length); }
+    if (t.id === "poSearch" || t.id === "poFilter") renderInbox();
+    if (t.id === "viewSearch") renderView();
+  });
+  document.addEventListener("change", (e) => {
+    const t = e.target, d = t.dataset;
+    if (d.pick != null) pendingReq.parts[+d.pick].on = t.checked;
+    if (d.pnum != null) pendingReq.parts[+d.pnum].num = t.value.trim();
+    if (d.pname != null) pendingReq.parts[+d.pname].name = t.value.trim();
+    if (d.mnum) { const m = mrById(d.mnum); const v = t.value.trim(); if (!v) return render(); if (S.mrs.some((x) => x !== m && x.num === v)) { toast(`${v} is already used`); return render(); } m.num = v; save(); toast("MR number updated"); }
+    if (d.mname) { mrById(d.mname).name = t.value.trim() || mrById(d.mname).name; save(); toast("Name updated"); }
+    if (t.id === "rgFrom") { regView.from = t.value; renderRegPicker(); }
+    if (t.id === "rgTo") { regView.to = t.value; renderRegPicker(); }
+    if (t.id === "rgNew") { regView.onlyNew = t.checked; renderRegPicker(); }
+    if (d.rsel) { t.checked ? regView.sel.add(d.rsel) : regView.sel.delete(d.rsel); renderRegPicker(); }
+    if (d.psel) { t.checked ? poSel.add(d.psel) : poSel.delete(d.psel); renderInbox(); }
+    if (t.id === "poAll") { document.querySelectorAll("[data-psel]").forEach((c) => (t.checked ? poSel.add(c.dataset.psel) : poSel.delete(c.dataset.psel))); renderInbox(); }
+    if (d.pq != null) { pdfQueue[+d.pq].P[d.f] = d.f === "po" ? t.value.trim().toUpperCase() : t.value; }
+    if (d.pl) { const [i, j, f] = d.pl.split(":"); const L = pdfQueue[+i].P.lines[+j]; L[f] = f === "inv" ? t.value.trim().toUpperCase() : num(t.value); }
+    if (d.mrpick) {
+      const ids = new Set(draft.mrIds); t.checked ? ids.add(d.mrpick) : ids.delete(d.mrpick);
+      draft = autoAllocate(S.pos[cur], [...ids]); renderMapPane();
+    }
+    if (d.aq) { const [inv, id] = d.aq.split("|"); const la = draft.lines[inv]; const v = num(t.value); if (v == null || v === 0) delete la.q[id]; else la.q[id] = v; renderMapPane(); }
+    if (d.sub != null) {
+      const la = draft.lines[d.sub]; la.sub = t.value || null; la.q = {};
+      if (la.sub) { const L = S.pos[cur].lines.find((l) => l.inv === d.sub); const m = draft.mrIds.map(mrById).find((x) => mrReq(x).has(la.sub)); if (m) la.q[m.id] = L.qty; }
+      renderMapPane();
+    }
+    if (t.id === "mapFilter") renderMapList();
+    if (t.id === "viewMr") { viewId = t.value; viewSt = ""; renderView(); }
+  });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-act], .tab"); if (!b) return;
+    if (b.classList.contains("tab")) return show(b.dataset.tab);
+    const a = b.dataset.act;
+    if (a === "req-cancel") { pendingReq = null; render(); }
+    if (a === "req-create") {
+      const picked = pendingReq.parts.filter((p) => p.on);
+      const dup = picked.find((p) => S.mrs.some((m) => m.num === p.num)); if (dup) return toast(`${dup.num} already exists — change the number`);
+      for (const p of picked) S.mrs.push({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), num: p.num, name: p.name, month: p.month, file: pendingReq.file, sheet: p.sheet, at: new Date().toISOString(), lines: p.lines });
+      pendingReq = null; save(); render(); toast(`${picked.length} MR(s) created`);
+    }
+    if (a === "mr-view") { viewId = b.dataset.id; viewSt = ""; show("view"); }
+    if (a === "mr-del") {
+      if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Click again to delete"; b.classList.add("danger"); return; }
+      const id = b.dataset.id; S.mrs = S.mrs.filter((m) => m.id !== id);
+      for (const [po, al] of Object.entries(S.alloc)) { al.mrIds = al.mrIds.filter((x) => x !== id); for (const la of Object.values(al.lines)) delete la.q[id]; if (!al.mrIds.length) delete S.alloc[po]; }
+      save(); render(); toast("MR deleted; its PO mappings were removed");
+    }
+    if (a === "reg-close") { regCache = null; render(); }
+    if (a === "reg-selall") { document.querySelectorAll("[data-rsel]").forEach((c) => regView.sel.add(c.dataset.rsel)); renderRegPicker(); }
+    if (a === "reg-selnone") { regView.sel.clear(); renderRegPicker(); }
+    if (a === "reg-add" || a === "reg-refresh") {
+      let n = 0;
+      const ids = a === "reg-add" ? [...regView.sel] : Object.keys(regCache.pos).filter((p) => S.pos[p]);
+      for (const p of ids) { const R = regCache.pos[p]; const old = S.pos[p]; S.pos[p] = { ...JSON.parse(JSON.stringify(R)), reg: true, pdf: old?.pdf || null }; n++; reconcileAllocLines(p); }
+      regView.sel.clear(); save(); render(); toast(a === "reg-add" ? `${n} PO(s) added to inbox` : `${n} PO(s) refreshed from the register`);
+    }
+    if (a === "pdf-cancel") { pdfQueue = []; render(); }
+    if (a === "pdf-drop") { pdfQueue.splice(+b.dataset.i, 1); render(); }
+    if (a === "pdf-line-del") { pdfQueue[+b.dataset.i].P.lines.splice(+b.dataset.j, 1); renderPdfReview(); }
+    if (a === "pdf-line-add") { pdfQueue[+b.dataset.i].P.lines.push({ inv: "", name: "", uom: "", qty: 0, rate: null }); renderPdfReview(); }
+    if (a === "pdf-lookup") { const q = pdfQueue[+b.dataset.i]; const R = regCache?.pos[q.P.po]; if (!R) return toast(`${q.P.po || "This PO"} is not in the loaded register`); q.P = JSON.parse(JSON.stringify(R)); q.from = "register"; renderPdfReview(); }
+    if (a === "pdf-add") {
+      const bad = pdfQueue.find((q) => !PO_RE.test(q.P.po) || !q.P.lines.filter((l) => l.inv && l.qty > 0).length); if (bad) return toast(`${bad.file}: needs a PO number and at least one line with INV and qty`);
+      for (const q of pdfQueue) { const p = q.P.po; const old = S.pos[p]; S.pos[p] = { ...(old || {}), ...q.P, lines: q.P.lines.filter((l) => l.inv && l.qty > 0), pdf: q.file, reg: old?.reg || q.from === "register" }; reconcileAllocLines(p); }
+      toast(`${pdfQueue.length} PDF PO(s) added`); pdfQueue = []; save(); render();
+    }
+    if (a === "po-map") openMap(b.dataset.po);
+    if (a === "po-del") {
+      if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Click again"; b.classList.add("danger"); return; }
+      delete S.pos[b.dataset.po]; delete S.alloc[b.dataset.po]; poSel.delete(b.dataset.po); save(); render();
+    }
+    if (b.id === "bulkMapBtn" || a === "bulk") { bulk = [...poSel]; cur = null; mrQuery = ""; show("map"); }
+    if (a === "bulk-cancel") { bulk = null; renderMapPane(); }
+    if (a === "bulk-go") {
+      const ids = [...document.querySelectorAll("[data-bulkpick]:checked")].map((c) => c.dataset.bulkpick); if (!ids.length) return toast("Tick at least one MR");
+      for (const p of bulk) { S.alloc[p] = { ...autoAllocate(S.pos[p], ids), at: new Date().toISOString() }; }
+      toast(`${bulk.length} PO(s) mapped`); bulk = null; poSel.clear(); save(); render();
+    }
+    if (a === "map-pick") { openMap(b.dataset.po); }
+    if (a === "sugg") { draft = autoAllocate(S.pos[cur], b.dataset.ids.split(",")); renderMapPane(); }
+    if (a === "map-auto") { draft = autoAllocate(S.pos[cur], draft.mrIds); renderMapPane(); }
+    if (a === "map-save") {
+      const P = S.pos[cur]; S.alloc[cur] = { ...draft, at: new Date().toISOString() };
+      const rk = ruleKey(P); if (rk && $("#remember")?.checked) S.rules[rk] = [...draft.mrIds];
+      save(); toast(`${cur} mapped to ${draft.mrIds.map((id) => mrById(id).num).join(" + ")}`);
+      const next = Object.values(S.pos).find((x) => x.po !== cur && !S.alloc[x.po]);
+      if (next) openMap(next.po); else render();
+    }
+    if (a === "map-unmap") { delete S.alloc[cur]; draft = { mrIds: [], lines: {} }; save(); render(); toast("Mapping removed"); }
+    if (a === "view-st") { viewSt = viewSt === b.dataset.st ? "" : b.dataset.st; renderView(); }
+  });
+  // A PO refreshed from the register may have new or removed INVs; keep the mapping for lines that still exist.
+  function reconcileAllocLines(p) {
+    const a = S.alloc[p]; if (!a) return; const invs = new Set(S.pos[p].lines.map((l) => l.inv));
+    for (const k of Object.keys(a.lines)) if (!invs.has(k)) delete a.lines[k];
+  }
+  $("#viewCopy").addEventListener("click", () => {
+    const rows = viewTable(); if (!rows.length) return;
+    const h = Object.keys(rows[0]); const txt = [h.join("\t"), ...rows.map((r) => h.map((k) => r[k]).join("\t"))].join("\n");
+    navigator.clipboard?.writeText(txt).then(() => toast("Copied — paste into Excel"), () => toast("Copy was blocked by the browser"));
+  });
+  $("#viewExport").addEventListener("click", () => {
+    const m = mrById(viewId); if (!m) return;
+    const ws = XLSX.utils.json_to_sheet(viewTable()); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, m.num);
+    try { XLSX.writeFile(wb, `${m.num} ${m.name}.xlsx`.replace(/[\\/:*?"<>|]/g, "-")); } catch (e) { toast("Download is blocked here — use Copy table"); }
+  });
+
+  let start = "req"; try { start = localStorage.getItem(KEY + ".tab") || start; } catch (e) {}
+  show(start);
+  window.MRPO = { reset() { S = blank(); save(); render(); }, state: () => S };
+})();
+</script>
+</body>
+</html>
